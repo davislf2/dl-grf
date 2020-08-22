@@ -1,3 +1,35 @@
+# Instruction
+```sh
+1. clone the repo
+git clone https://github.com/davislf2/dl-grf.git
+
+2. create virtual env and install packages
+python3 -m venv venv
+source venv/bin/activate
+pip install numpy==1.18.5 scipy==1.4.1 tensorflow==2.3.0 tensorflow-gpu==2.3.0 sklearn==0.23.2 matplotlib==3.3.1 keras==2.4.3 h5py==2.10.0 pandas==1.1.0
+pip install git+https://www.github.com/keras-team/keras-contrib.git
+
+3. put data into the folder
+cd dl-grf
+mkdir -p data/archives/TSC/HC_SHOD_IdentidySubjectID_comma
+mv HC_SHOD_IdentidySubjectID_comma_TRAIN.ts data/archives/TSC/HC_SHOD_IdentidySubjectID_comma/
+mv HC_SHOD_IdentidySubjectID_comma_TEST.ts data/archives/TSC/HC_SHOD_IdentidySubjectID_comma/
+
+4. train and predict model
+time CUDA_VISIBLE_DEVICES=0 python3 main.py \
+--dir ./data \
+--action single \
+--archive TSC \
+--dataset HC_SHOD_IdentidySubjectID_comma \
+--classifier fcn \
+--file_ext .ts \
+--itr _itr_8
+
+5. use another tab of console to see whether cuda is working
+nvidia-smi
+
+```
+
 # Deep Learning for Time Series Classification
 This is the companion repository for [our paper](https://link.springer.com/article/10.1007%2Fs10618-019-00619-1) titled "Deep learning for time series classification: a review" published in [Data Mining and Knowledge Discovery](https://link.springer.com/journal/10618), also available on [ArXiv](https://arxiv.org/pdf/1809.04356.pdf). 
 
