@@ -10,13 +10,18 @@ import numpy as np
 import sys
 import sklearn
 import utils
+import argparse
 from utils.constants import CLASSIFIERS
 from utils.constants import ARCHIVE_NAMES
 from utils.constants import ITERATIONS
 from utils.utils import read_all_datasets
+import tensorflow as tf
+
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.DEBUG)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(0)
 
 
-def fit_classifier():
+def fit_classifier(datasets_dict):
     x_train = datasets_dict[dataset_name][0]
     y_train = datasets_dict[dataset_name][1]
     x_test = datasets_dict[dataset_name][2]
@@ -79,79 +84,130 @@ def create_classifier(classifier_name, input_shape, nb_classes, output_directory
 
 ############################################### main
 
-# change this directory for your machine
-root_dir = '/b/home/uha/hfawaz-datas/dl-tsc-temp/'
+if __name__ == '__main__':
+    '''
+    Example:
+        python3 main.py \
+        --dir ./data \
+        --action single \
+        --archive TSC \
+        --dataset Coffee \
+        --classifier fcn \
+        --itr _itr_8 \
+        --file_ext .arff \
+        --remove_header True
+    
+    '''
+    parser = argparse.ArgumentParser(description="Data Augmentation Modules (including SWAT, EDA, Multi-Label, "
+                                                 "Overlapping, ..." +
+                                                 "https://confluence.oraclecorp.com/confluence/display/IBS/SWAT"
+                                                 "+Sensless+Patterns")
+    parser.add_argument('--dir',
+                        help='root dir',
+                        default='./data')
+    parser.add_argument('--action',
+                        help='action',
+                        default='single')
+    parser.add_argument('--archive',
+                        help='archive name',
+                        default='TSC')
+    parser.add_argument('--dataset',
+                        help='input dataset name',
+                        default='Coffee')
+    parser.add_argument('--classifier',
+                        help='classifier name',
+                        default='fcn')
+    parser.add_argument('--itr',
+                        help='iteration times',
+                        default='_itr_8')
+    parser.add_argument('--file_ext',
+                        help='input file extension',
+                        default='')
+    parser.add_argument('--remove_docstr',
+                        help='remove the doc string of the data file',
+                        default=True)
+    args = parser.parse_args()
+    root_dir = args.dir
 
-if sys.argv[1] == 'run_all':
-    for classifier_name in CLASSIFIERS:
-        print('classifier_name', classifier_name)
+    # change this directory for your machine
+    # root_dir = '/b/home/uha/hfawaz-datas/dl-tsc-temp/'
+    # root_dir = '/oradiskvdb/work/side/Gait/dl-4-tsc/data'
 
-        for archive_name in ARCHIVE_NAMES:
-            print('\tarchive_name', archive_name)
+    if args.action == 'run_all':
+        for classifier_name in CLASSIFIERS:
+            print('classifier_name', classifier_name)
 
-            datasets_dict = read_all_datasets(root_dir, archive_name)
+            for archive_name in ARCHIVE_NAMES:
+                print('\tarchive_name', archive_name)
 
-            for iter in range(ITERATIONS):
-                print('\t\titer', iter)
+                datasets_dict = read_all_datasets(root_dir, archive_name)
 
-                trr = ''
-                if iter != 0:
-                    trr = '_itr_' + str(iter)
+                for iter in range(ITERATIONS):
+                    print('\t\titer', iter)
 
-                tmp_output_directory = root_dir + '/results/' + classifier_name + '/' + archive_name + trr + '/'
+                    trr = ''
+                    if iter != 0:
+                        trr = '_itr_' + str(iter)
 
-                for dataset_name in utils.constants.dataset_names_for_archive[archive_name]:
-                    print('\t\t\tdataset_name: ', dataset_name)
+                    tmp_output_directory = root_dir + '/results/' + classifier_name + '/' + archive_name + trr + '/'
 
-                    output_directory = tmp_output_directory + dataset_name + '/'
+                    for dataset_name in utils.constants.dataset_names_for_archive[archive_name]:
+                        print('\t\t\tdataset_name: ', dataset_name)
 
-                    create_directory(output_directory)
+                        output_directory = tmp_output_directory + dataset_name + '/'
 
-                    fit_classifier()
+                        create_directory(output_directory)
 
-                    print('\t\t\t\tDONE')
+                        fit_classifier()
 
-                    # the creation of this directory means
-                    create_directory(output_directory + '/DONE')
+                        print('\t\t\t\tDONE')
 
-elif sys.argv[1] == 'transform_mts_to_ucr_format':
-    transform_mts_to_ucr_format()
-elif sys.argv[1] == 'visualize_filter':
-    visualize_filter(root_dir)
-elif sys.argv[1] == 'viz_for_survey_paper':
-    viz_for_survey_paper(root_dir)
-elif sys.argv[1] == 'viz_cam':
-    viz_cam(root_dir)
-elif sys.argv[1] == 'generate_results_csv':
-    res = generate_results_csv('results.csv', root_dir)
-    print(res.to_string())
-else:
-    # this is the code used to launch an experiment on a dataset
-    archive_name = sys.argv[1]
-    dataset_name = sys.argv[2]
-    classifier_name = sys.argv[3]
-    itr = sys.argv[4]
+                        # the creation of this directory means
+                        create_directory(output_directory + '/DONE')
 
-    if itr == '_itr_0':
-        itr = ''
-
-    output_directory = root_dir + '/results/' + classifier_name + '/' + archive_name + itr + '/' + \
-                       dataset_name + '/'
-
-    test_dir_df_metrics = output_directory + 'df_metrics.csv'
-
-    print('Method: ', archive_name, dataset_name, classifier_name, itr)
-
-    if os.path.exists(test_dir_df_metrics):
-        print('Already done')
+    elif args.action == 'transform_mts_to_ucr_format':
+        transform_mts_to_ucr_format()
+    elif args.action == 'visualize_filter':
+        visualize_filter(root_dir)
+    elif args.action == 'viz_for_survey_paper':
+        viz_for_survey_paper(root_dir)
+    elif args.action == 'viz_cam':
+        viz_cam(root_dir)
+    elif args.action == 'generate_results_csv':
+        res = generate_results_csv('results.csv', root_dir)
+        print(res.to_string())
     else:
+        # this is the code used to launch an experiment on a dataset
+        # archive_name = sys.argv[1]
+        # dataset_name = sys.argv[2]
+        # classifier_name = sys.argv[3]
+        # itr = sys.argv[4]
+        archive_name = args.archive
+        dataset_name = args.dataset
+        classifier_name = args.classifier
+        itr = args.itr
+        
+        if itr == '_itr_0':
+            itr = ''
 
-        create_directory(output_directory)
-        datasets_dict = read_dataset(root_dir, archive_name, dataset_name)
+        output_directory = root_dir + '/results/' + classifier_name + '/' + archive_name + itr + '/' + \
+                        dataset_name + '/'
 
-        fit_classifier()
+        test_dir_df_metrics = output_directory + 'df_metrics.csv'
 
-        print('DONE')
+        print('Method: ', archive_name, dataset_name, classifier_name, itr)
 
-        # the creation of this directory means
-        create_directory(output_directory + '/DONE')
+        if os.path.exists(test_dir_df_metrics):
+            print('Already done')
+        else:
+
+            create_directory(output_directory)
+            datasets_dict = read_dataset(root_dir, archive_name, dataset_name, args.file_ext, args.remove_docstr)
+            print("datasets_dict:", datasets_dict)
+
+            fit_classifier(datasets_dict)
+
+            print('DONE')
+
+            # the creation of this directory means
+            create_directory(output_directory + '/DONE')
