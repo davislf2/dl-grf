@@ -29,10 +29,14 @@ from scipy.interpolate import interp1d
 from scipy.io import loadmat
 
 
-def readucr(filename):
+def readucr(filename, remove_docstr=False):
+    if remove_docstr:
+        pass
     data = np.loadtxt(filename, delimiter=',')
-    Y = data[:, 0]
-    X = data[:, 1:]
+    # Y = data[:, 0]
+    # X = data[:, 1:]
+    Y = data[:, -1]
+    X = data[:, 0:-1]
     return X, Y
 
 
@@ -57,7 +61,7 @@ def create_path(root_dir, classifier_name, archive_name):
         return output_directory
 
 
-def read_dataset(root_dir, archive_name, dataset_name):
+def read_dataset(root_dir, archive_name, dataset_name, file_ext='', remove_docstr=False):
     datasets_dict = {}
     cur_root_dir = root_dir.replace('-temp', '')
 
@@ -102,8 +106,8 @@ def read_dataset(root_dir, archive_name, dataset_name):
                                        y_test.copy())
     else:
         file_name = cur_root_dir + '/archives/' + archive_name + '/' + dataset_name + '/' + dataset_name
-        x_train, y_train = readucr(file_name + '_TRAIN')
-        x_test, y_test = readucr(file_name + '_TEST')
+        x_train, y_train = readucr(file_name + '_TRAIN' + file_ext, remove_docstr)
+        x_test, y_test = readucr(file_name + '_TEST' + file_ext, remove_docstr)
         datasets_dict[dataset_name] = (x_train.copy(), y_train.copy(), x_test.copy(),
                                        y_test.copy())
 
