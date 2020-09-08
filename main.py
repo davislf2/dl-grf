@@ -16,40 +16,80 @@ from utils.constants import ARCHIVE_NAMES
 from utils.constants import ITERATIONS
 from utils.utils import read_all_datasets
 import tensorflow as tf
+from sklearn.model_selection import StratifiedShuffleSplit
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.DEBUG)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(0)
 
 
-def fit_classifier(datasets_dict):
+def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only):
     x_train = datasets_dict[dataset_name][0]
     y_train = datasets_dict[dataset_name][1]
     x_test = datasets_dict[dataset_name][2]
     y_test = datasets_dict[dataset_name][3]
 
+    print("x_train.shape:", x_train.shape)
+    print("y_train.shape:", y_train.shape)
+    print("x_test.shape:", x_test.shape)
+    print("y_test.shape:", y_test.shape)
     nb_classes = len(np.unique(np.concatenate((y_train, y_test), axis=0)))
+
+    sskf = StratifiedShuffleSplit(n_splits=1, test_size=val_proportion)
+    splits = sskf.split(x_train, y_train)
+
+    for n, (train_index, val_index) in enumerate(splits):
+        x_train_small = np.array([x_train[i] for i in train_index])
+        x_val = np.array([x_train[i] for i in val_index])
+        y_train_small = np.array([y_train[i] for i in train_index])
+        y_val = np.array([y_train[i] for i in val_index])
+
+    print("x_train_small.shape:", x_train_small.shape)
+    print("y_train_small.shape:", y_train_small.shape)
+    print("x_val.shape:", x_val.shape)
+    print("y_val.shape:", y_val.shape)
+    print("x_test.shape:", x_test.shape)
+    print("y_test.shape:", y_test.shape)
 
     # transform the labels from integers to one hot vectors
     enc = sklearn.preprocessing.OneHotEncoder(categories='auto')
     enc.fit(np.concatenate((y_train, y_test), axis=0).reshape(-1, 1))
-    y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
+    # y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
+    # y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
+    y_train_small = enc.transform(y_train_small.reshape(-1, 1)).toarray()
+    y_val = enc.transform(y_val.reshape(-1, 1)).toarray()
     y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
+
+    print("y_train_small.shape:", y_train_small.shape)
+    print("y_val.shape:", y_val.shape)
+    print("y_test.shape:", y_test.shape)
 
     # save orignal y because later we will use binary
     y_true = np.argmax(y_test, axis=1)
+    print("y_true.shape:", y_true.shape)
 
-    if len(x_train.shape) == 2:  # if univariate
+    # if len(x_train.shape) == 2:  # if univariate
+    if len(x_train_small.shape) == 2:  # if univariate
         # add a dimension to make it multivariate with one dimension 
-        x_train = x_train.reshape((x_train.shape[0], x_train.shape[1], 1))
+        # x_train = x_train.reshape((x_train.shape[0], x_train.shape[1], 1))
+        # x_test = x_test.reshape((x_test.shape[0], x_test.shape[1], 1))
+        x_train_small = x_train_small.reshape((x_train_small.shape[0], x_train_small.shape[1], 1))
+        x_val = x_val.reshape((x_val.shape[0], x_val.shape[1], 1))
         x_test = x_test.reshape((x_test.shape[0], x_test.shape[1], 1))
 
-    input_shape = x_train.shape[1:]
-    classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory)
+    print("x_train_small.shape:", x_train_small.shape)
+    print("x_val.shape:", x_val.shape)
+    print("x_test.shape:", x_test.shape)
+    
+    # input_shape = x_train.shape[1:]
+    input_shape = x_train_small.shape[1:]
+    print("input_shape:", input_shape)
+    classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose)
 
-    classifier.fit(x_train, y_train, x_test, y_test, y_true)
+    # classifier.fit(x_train, y_train, x_test, y_test, y_true)
+    classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only)
 
 
-def create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose=False):
+def create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose=True):
     if classifier_name == 'fcn':
         from classifiers import fcn
         return fcn.Classifier_FCN(output_directory, input_shape, nb_classes, verbose)
@@ -126,6 +166,15 @@ if __name__ == '__main__':
     parser.add_argument('--remove_docstr',
                         help='remove the doc string of the data file',
                         default=True)
+    parser.add_argument('--verbose',
+                        help='make training progress verbose',
+                        default=True)
+    parser.add_argument('--val_proportion',
+                        help='make training progress verbose',
+                        default=0.1)
+    parser.add_argument('--do_pred_only',
+                        help='skip training, do prediction only',
+                        default=False)
     args = parser.parse_args()
     root_dir = args.dir
 
@@ -205,7 +254,7 @@ if __name__ == '__main__':
             datasets_dict = read_dataset(root_dir, archive_name, dataset_name, args.file_ext, args.remove_docstr)
             print("datasets_dict:", datasets_dict)
 
-            fit_classifier(datasets_dict)
+            fit_classifier(datasets_dict, args.verbose, args.val_proportion, args.do_pred_only)
 
             print('DONE')
 
