@@ -334,11 +334,13 @@ def generate_results_csv(output_file_name, root_dir):
 def plot_epochs_metric(hist, file_name, metric='loss'):
     plt.figure()
     plt.plot(hist.history[metric])
-    plt.plot(hist.history['val_' + metric])
+    if hist.history.get('val_' + metric):
+        plt.plot(hist.history['val_' + metric])
     plt.title('model ' + metric)
     plt.ylabel(metric, fontsize='large')
     plt.xlabel('epoch', fontsize='large')
-    plt.legend(['train', 'val'], loc='upper left')
+    if hist.history.get('val_' + metric):
+        plt.legend(['train', 'val'], loc='upper left')
     plt.savefig(file_name, bbox_inches='tight')
     plt.close()
 
@@ -384,9 +386,9 @@ def save_logs(output_directory, hist, y_pred, y_true, duration, lr=True, y_true_
                                           'best_model_val_acc', 'best_model_learning_rate', 'best_model_nb_epoch'])
 
     df_best_model['best_model_train_loss'] = row_best_model['loss']
-    df_best_model['best_model_val_loss'] = row_best_model['val_loss']
+    df_best_model['best_model_val_loss'] = row_best_model.get('val_loss')
     df_best_model['best_model_train_acc'] = row_best_model['accuracy']
-    df_best_model['best_model_val_acc'] = row_best_model['val_accuracy']
+    df_best_model['best_model_val_acc'] = row_best_model.get('val_accuracy')
     if lr == True:
         df_best_model['best_model_learning_rate'] = row_best_model['lr']
     df_best_model['best_model_nb_epoch'] = index_best_model

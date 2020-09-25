@@ -21,6 +21,17 @@ from sklearn.model_selection import StratifiedShuffleSplit
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.DEBUG)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(0)
 
+import random
+import tensorflow as tf
+import numpy as np
+import tfdeterminism
+
+
+def set_random_seed(seed: int = 1):
+    tf.compat.v1.set_random_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
 
 def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only):
     x_train = datasets_dict[dataset_name][0]
@@ -34,19 +45,26 @@ def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only):
     print("y_test.shape:", y_test.shape)
     nb_classes = len(np.unique(np.concatenate((y_train, y_test), axis=0)))
 
-    sskf = StratifiedShuffleSplit(n_splits=1, test_size=val_proportion)
-    splits = sskf.split(x_train, y_train)
+    try:
+        sskf = StratifiedShuffleSplit(n_splits=1, test_size=val_proportion)
+        splits = sskf.split(x_train, y_train)
 
-    for n, (train_index, val_index) in enumerate(splits):
-        x_train_small = np.array([x_train[i] for i in train_index])
-        x_val = np.array([x_train[i] for i in val_index])
-        y_train_small = np.array([y_train[i] for i in train_index])
-        y_val = np.array([y_train[i] for i in val_index])
+        for n, (train_index, val_index) in enumerate(splits):
+            x_train_small = np.array([x_train[i] for i in train_index])
+            x_val = np.array([x_train[i] for i in val_index])
+            y_train_small = np.array([y_train[i] for i in train_index])
+            y_val = np.array([y_train[i] for i in val_index])
+    except:
+        x_train_small = x_train
+        x_val = None
+        y_train_small = y_train
+        y_val = None
 
     print("x_train_small.shape:", x_train_small.shape)
     print("y_train_small.shape:", y_train_small.shape)
-    print("x_val.shape:", x_val.shape)
-    print("y_val.shape:", y_val.shape)
+    if x_val:
+        print("x_val.shape:", x_val.shape)
+        print("y_val.shape:", y_val.shape)
     print("x_test.shape:", x_test.shape)
     print("y_test.shape:", y_test.shape)
 
@@ -56,11 +74,13 @@ def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only):
     # y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
     # y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
     y_train_small = enc.transform(y_train_small.reshape(-1, 1)).toarray()
-    y_val = enc.transform(y_val.reshape(-1, 1)).toarray()
+    if y_val:
+        y_val = enc.transform(y_val.reshape(-1, 1)).toarray()
     y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
 
     print("y_train_small.shape:", y_train_small.shape)
-    print("y_val.shape:", y_val.shape)
+    if y_val:
+        print("y_val.shape:", y_val.shape)
     print("y_test.shape:", y_test.shape)
 
     # save orignal y because later we will use binary
@@ -77,7 +97,8 @@ def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only):
         x_test = x_test.reshape((x_test.shape[0], x_test.shape[1], 1))
 
     print("x_train_small.shape:", x_train_small.shape)
-    print("x_val.shape:", x_val.shape)
+    if x_val:
+        print("x_val.shape:", x_val.shape)
     print("x_test.shape:", x_test.shape)
     
     # input_shape = x_train.shape[1:]

@@ -78,8 +78,12 @@ class Classifier_FCN:
 
 			start_time = time.time() 
 
-			hist = self.model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
-				verbose=self.verbose, validation_data=(x_val, y_val), callbacks=self.callbacks)
+			if x_val and y_val:
+				hist = self.model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
+					verbose=self.verbose, validation_data=(x_val, y_val), callbacks=self.callbacks)
+			else:
+				hist = self.model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
+					verbose=self.verbose, callbacks=self.callbacks)
 			
 			duration = time.time() - start_time
 
