@@ -59,6 +59,8 @@ class Classifier_MLP:
 
     # def fit(self, x_train, y_train, x_val, y_val, y_true):
     def fit(self, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=5000, batch_size=16):
+        nb_epochs = int(nb_epochs)
+        batch_size = int(batch_size)
         if not tf.test.is_gpu_available:
             print('error')
             exit()
