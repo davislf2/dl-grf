@@ -141,12 +141,11 @@ class Classifier_TLENET:
                 idx += increase_num
         return new_x_train,new_y_train,new_x_test,new_y_test, tot_increase_num
     
-    def fit(self, x_train, y_train, x_test, y_test,y_true):
+    # def fit(self, x_train, y_train, x_test, y_test,y_true):
+    def fit(self, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=1000, batch_size=256):
         if not tf.test.is_gpu_available:
             print('error')
             exit()
-        nb_epochs = 1000
-        batch_size= 256
         nb_classes = y_train.shape[1]
 
         # limit the number of augmented time series if series too long or too many 
@@ -162,9 +161,9 @@ class Classifier_TLENET:
         ####################
         
         
-        x_train , y_train , x_test , y_test, tot_increase_num = self.pre_processing(x_train,y_train,x_test,y_test)
+        x_train, y_train, x_test, y_test, tot_increase_num = self.pre_processing(x_train, y_train, x_test, y_test)
         
-        print('Total increased number for each MTS: ',tot_increase_num)
+        print('Total increased number for each MTS: ', tot_increase_num)
 
         #########################
         ## done pre-processing ##
@@ -181,17 +180,17 @@ class Classifier_TLENET:
         hist = model.fit(x_train, y_train, batch_size=batch_size, epochs=nb_epochs,
             verbose=self.verbose, validation_data = (x_test,y_test),callbacks=self.callbacks)
 
-        model.save(self.output_directory+'last_model.hdf5')
+        model.save(self.output_directory + 'last_model.hdf5')
 
         model = keras.models.load_model(self.output_directory+'best_model.hdf5')
         
-        y_pred = model.predict(x_test,batch_size=batch_size)
+        y_pred = model.predict(x_test, batch_size=batch_size)
         # convert the predicted from binary to integer 
         y_pred = np.argmax(y_pred , axis=1)
         
         # get the true predictions of the test set
         y_predicted = []
-        test_num_batch = int(x_test.shape[0]/tot_increase_num)
+        test_num_batch = int(x_test.shape[0] / tot_increase_num)
         for i in range(test_num_batch):
             unique_value, sub_ind, correspond_ind, count = np.unique(y_pred[i*tot_increase_num:(i+1)*tot_increase_num], True, True, True)
 

@@ -54,34 +54,49 @@ class Classifier_CNN:
 
         return model
 
-    def fit(self, x_train, y_train, x_val, y_val, y_true):
+    # def fit(self, x_train, y_train, x_val, y_val, y_true):
+    def fit(self, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=2000, batch_size=16):
         if not tf.test.is_gpu_available:
             print('error')
             exit()
+        if do_pred_only:
+            results = self.model.evaluate(x_test, y_test, batch_size=128)
+            print("results:", results)
+            y_pred = self.model.predict(x_test)
+            print("y_pred:", y_pred)
+            # convert the predicted from binary to integer 
+            y_pred = np.argmax(y_pred , axis=1)
+        else:
+            # x_val and y_val are only used to monitor the test loss and NOT for training
 
-        # x_val and y_val are only used to monitor the test loss and NOT for training
-        mini_batch_size = 16
-        nb_epochs = 2000
+            mini_batch_size = int(min(x_train.shape[0] / 10, batch_size))
 
-        start_time = time.time()
+            start_time = time.time()
 
-        hist = self.model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
-                              verbose=self.verbose, validation_data=(x_val, y_val), callbacks=self.callbacks)
+            if x_val is not None and y_val is not None:
+                hist = self.model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
+                                verbose=self.verbose, validation_data=(x_val, y_val), callbacks=self.callbacks)
+            else:
+                hist = self.model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
+                    verbose=self.verbose, callbacks=self.callbacks)
+                
+            duration = time.time() - start_time
 
-        duration = time.time() - start_time
+            self.model.save(self.output_directory + 'last_model.hdf5')
 
-        self.model.save(self.output_directory+'last_model.hdf5')
+            model = keras.models.load_model(self.output_directory + 'best_model.hdf5')
 
-        model = keras.models.load_model(self.output_directory + 'best_model.hdf5')
+            # y_pred = model.predict(x_val)
+            y_pred = model.predict(x_test)
 
-        y_pred = model.predict(x_val)
+            # convert the predicted from binary to integer
+            y_pred = np.argmax(y_pred, axis=1)
 
-        # convert the predicted from binary to integer
-        y_pred = np.argmax(y_pred, axis=1)
+            df_metrics = save_logs(self.output_directory, hist, y_pred, y_true, duration, lr=False)
 
-        save_logs(self.output_directory, hist, y_pred, y_true, duration,lr=False)
+            keras.backend.clear_session()
 
-        keras.backend.clear_session()
+            return df_metrics
 
     def predict(self, x_test,y_true,x_train,y_train,y_test,return_df_metrics = True):
         model_path = self.output_directory + 'best_model.hdf5'

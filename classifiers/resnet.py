@@ -155,7 +155,7 @@ class Classifier_RESNET:
 
             model = keras.models.load_model(self.output_directory + 'best_model.hdf5')
 
-			y_pred = model.predict(x_test)
+            y_pred = model.predict(x_test)
 
             # save predictions
             np.save(self.output_directory + 'y_pred.npy', y_pred)
