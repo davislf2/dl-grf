@@ -33,7 +33,7 @@ def set_random_seed(seed: int = 1):
     random.seed(seed)
 
 
-def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only):
+def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only, nb_epochs=None, batch_size=None):
     x_train = datasets_dict[dataset_name][0]
     y_train = datasets_dict[dataset_name][1]
     x_test = datasets_dict[dataset_name][2]
@@ -62,7 +62,7 @@ def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only):
 
     print("x_train_small.shape:", x_train_small.shape)
     print("y_train_small.shape:", y_train_small.shape)
-    if x_val:
+    if x_val is not None:
         print("x_val.shape:", x_val.shape)
         print("y_val.shape:", y_val.shape)
     print("x_test.shape:", x_test.shape)
@@ -74,12 +74,12 @@ def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only):
     # y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
     # y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
     y_train_small = enc.transform(y_train_small.reshape(-1, 1)).toarray()
-    if y_val:
+    if y_val is not None:
         y_val = enc.transform(y_val.reshape(-1, 1)).toarray()
     y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
 
     print("y_train_small.shape:", y_train_small.shape)
-    if y_val:
+    if y_val is not None:
         print("y_val.shape:", y_val.shape)
     print("y_test.shape:", y_test.shape)
 
@@ -97,7 +97,7 @@ def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only):
         x_test = x_test.reshape((x_test.shape[0], x_test.shape[1], 1))
 
     print("x_train_small.shape:", x_train_small.shape)
-    if x_val:
+    if x_val is not None:
         print("x_val.shape:", x_val.shape)
     print("x_test.shape:", x_test.shape)
     
@@ -107,8 +107,16 @@ def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only):
     classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose)
 
     # classifier.fit(x_train, y_train, x_test, y_test, y_true)
-    classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only)
-
+    if nb_epochs:
+        if batch_size:
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs, batch_size)
+        else:
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs=nb_epochs)
+    else:
+        if batch_size:
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, batch_size=batch_size)
+        else:
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only)
 
 def create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose=True):
     if classifier_name == 'fcn':
@@ -196,6 +204,12 @@ if __name__ == '__main__':
     parser.add_argument('--do_pred_only',
                         help='skip training, do prediction only',
                         default=False)
+    parser.add_argument('--nb_epochs',
+                        help='number of epochs',
+                        default=None)
+    parser.add_argument('--batch_size',
+                        help='batch size in train',
+                        default=None)
     args = parser.parse_args()
     root_dir = args.dir
 
@@ -273,9 +287,9 @@ if __name__ == '__main__':
 
             create_directory(output_directory)
             datasets_dict = read_dataset(root_dir, archive_name, dataset_name, args.file_ext, args.remove_docstr)
-            print("datasets_dict:", datasets_dict)
+            # print("datasets_dict:", datasets_dict)
 
-            fit_classifier(datasets_dict, args.verbose, args.val_proportion, args.do_pred_only)
+            fit_classifier(datasets_dict, args.verbose, args.val_proportion, args.do_pred_only, args.nb_epochs, args.batch_size)
 
             print('DONE')
 
