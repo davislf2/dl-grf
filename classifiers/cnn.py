@@ -42,17 +42,56 @@ class Classifier_CNN:
 
         model = keras.models.Model(inputs=input_layer, outputs=output_layer)
 
-        model.compile(loss='mean_squared_error', optimizer=keras.optimizers.Adam(),
+        # model.compile(loss='mean_squared_error', optimizer = keras.optimizers.Adam(),
+        #               metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer = keras.optimizers.Adam(),
                       metrics=['accuracy'])
+
+        # additional
+        reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=50, 
+            min_lr=0.0001)
 
         file_path = self.output_directory + 'best_model.hdf5'
 
         model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss',
                                                            save_best_only=True)
 
-        self.callbacks = [model_checkpoint]
+        # self.callbacks = [model_checkpoint]
+        self.callbacks = [reduce_lr,model_checkpoint]
 
         return model
+
+    ### original implementation
+    # def build_model(self, input_shape, nb_classes):
+    #     padding = 'valid'
+    #     input_layer = keras.layers.Input(input_shape)
+
+    #     if input_shape[0] < 60: # for italypowerondemand dataset
+    #         padding = 'same'
+
+    #     conv1 = keras.layers.Conv1D(filters=6,kernel_size=7,padding=padding,activation='sigmoid')(input_layer)
+    #     conv1 = keras.layers.AveragePooling1D(pool_size=3)(conv1)
+
+    #     conv2 = keras.layers.Conv1D(filters=12,kernel_size=7,padding=padding,activation='sigmoid')(conv1)
+    #     conv2 = keras.layers.AveragePooling1D(pool_size=3)(conv2)
+
+    #     flatten_layer = keras.layers.Flatten()(conv2)
+
+    #     output_layer = keras.layers.Dense(units=nb_classes,activation='sigmoid')(flatten_layer)
+
+    #     model = keras.models.Model(inputs=input_layer, outputs=output_layer)
+
+    #     model.compile(loss='mean_squared_error', optimizer = keras.optimizers.Adam(),
+    #                   metrics=['accuracy'])
+
+    #     file_path = self.output_directory + 'best_model.hdf5'
+
+    #     model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss',
+    #                                                        save_best_only=True)
+
+    #     self.callbacks = [model_checkpoint]
+
+    #     return model
 
     # def fit(self, x_train, y_train, x_val, y_val, y_true):
     def fit(self, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=2000, batch_size=16):
@@ -94,7 +133,8 @@ class Classifier_CNN:
             # convert the predicted from binary to integer
             y_pred = np.argmax(y_pred, axis=1)
 
-            df_metrics = save_logs(self.output_directory, hist, y_pred, y_true, duration, lr=False)
+            # df_metrics = save_logs(self.output_directory, hist, y_pred, y_true, duration, lr=False)
+            df_metrics = save_logs(self.output_directory, hist, y_pred, y_true, duration)
 
             keras.backend.clear_session()
 
