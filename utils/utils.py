@@ -71,9 +71,28 @@ def read_dataset(root_dir, archive_name, dataset_name, file_ext='', remove_docst
         y_train = np.load(file_name + 'y_train.npy')
         x_test = np.load(file_name + 'x_test.npy')
         y_test = np.load(file_name + 'y_test.npy')
+        if os.path.exists(file_name + 'x_val.npy') and os.path.exists(file_name + 'y_val.npy'):
+            x_val = np.load(file_name + 'x_val.npy')
+            y_val = np.load(file_name + 'y_val.npy')
+            datasets_dict[dataset_name] = (x_train.copy(), y_train.copy(), x_test.copy(),
+                                           y_test.copy(), x_val.copy(), y_val.copy())
+        else:
+            datasets_dict[dataset_name] = (x_train.copy(), y_train.copy(), x_test.copy(),
+                                           y_test.copy())
 
-        datasets_dict[dataset_name] = (x_train.copy(), y_train.copy(), x_test.copy(),
-                                       y_test.copy())
+    elif archive_name == 'pretrain':
+        file_name = cur_root_dir + '/archives/' + archive_name + '/' + dataset_name + '/'
+        p_x_train = np.load(file_name + 'PreTrain_x_train.npy')
+        p_y_train = np.load(file_name + 'PreTrain_y_train.npy')
+        p_x_test = np.load(file_name + 'PreTrain_x_test.npy')
+        p_y_test = np.load(file_name + 'PreTrain_y_test.npy')
+        o_x_train = np.load(file_name + 'OneShot_x_train.npy')
+        o_y_train = np.load(file_name + 'OneShot_y_train.npy')
+        o_x_test = np.load(file_name + 'OneShot_x_test.npy')
+        o_y_test = np.load(file_name + 'OneShot_y_test.npy')
+
+        datasets_dict[dataset_name] = (p_x_train.copy(), p_y_train.copy(), p_x_test.copy(), p_y_test.copy(),
+                                       o_x_train.copy(), o_y_train.copy(), o_x_test.copy(), o_y_test.copy())
 
     elif archive_name == 'UCRArchive_2018':
         root_dir_dataset = cur_root_dir + '/archives/' + archive_name + '/' + dataset_name + '/'
@@ -371,12 +390,26 @@ def save_logs_t_leNet(output_directory, hist, y_pred, y_true, duration):
     plot_epochs_metric(hist, output_directory + 'epochs_loss.png')
 
 
-def save_logs(output_directory, hist, y_pred, y_true, duration, lr=True, y_true_val=None, y_pred_val=None):
+def save_logs(output_directory, hist, y_pred, y_true, duration, lr=True, y_true_val=None, y_pred_val=None, train_method='normal'):
     hist_df = pd.DataFrame(hist.history)
-    hist_df.to_csv(output_directory + 'history.csv', index=False)
+    if 'normal' not in train_method:
+        hist_df.to_csv(output_directory + f'{train_method}_history.csv', index=False)
+    else:
+        hist_df.to_csv(output_directory + 'history.csv', index=False)
 
+    # print("len(y_true):", len(y_true))
+    # print("len(y_pred):", len(y_pred))
+    count = 0
+    for t, p in zip(y_true, y_pred):
+        if t == p:
+            count += 1
+    # print("count:", count)
+    print("accuracy:", count/len(y_pred))
     df_metrics = calculate_metrics(y_true, y_pred, duration, y_true_val, y_pred_val)
-    df_metrics.to_csv(output_directory + 'df_metrics.csv', index=False)
+    if 'normal' not in train_method:
+        df_metrics.to_csv(output_directory + f'{train_method}_df_metrics.csv', index=False)
+    else:
+        df_metrics.to_csv(output_directory + 'df_metrics.csv', index=False)
 
     index_best_model = hist_df['loss'].idxmin()
     row_best_model = hist_df.loc[index_best_model]
@@ -393,12 +426,18 @@ def save_logs(output_directory, hist, y_pred, y_true, duration, lr=True, y_true_
         df_best_model['best_model_learning_rate'] = row_best_model['lr']
     df_best_model['best_model_nb_epoch'] = index_best_model
 
-    df_best_model.to_csv(output_directory + 'df_best_model.csv', index=False)
+    if 'normal' not in train_method:
+        df_best_model.to_csv(output_directory + f'{train_method}_df_best_model.csv', index=False)
+    else:
+        df_best_model.to_csv(output_directory + 'df_best_model.csv', index=False)
 
     # for FCN there is no hyperparameters fine tuning - everything is static in code
 
     # plot losses
-    plot_epochs_metric(hist, output_directory + 'epochs_loss.png')
+    if 'normal' not in train_method:
+        plot_epochs_metric(hist, output_directory + f'{train_method}_epochs_loss.png')
+    else:
+        plot_epochs_metric(hist, output_directory + 'epochs_loss.png')
 
     return df_metrics
 
@@ -592,24 +631,29 @@ def viz_for_survey_paper(root_dir, filename='results-ucr-mts.csv'):
     viz_plot(root_dir, df)
 
 
-def viz_cam(root_dir):
+def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext='', remove_docstr=False):
     import tensorflow.keras as keras
     import sklearn
-    classifier = 'resnet'
-    archive_name = 'UCRArchive_2018'
-    dataset_name = 'GunPoint'
+    # # classifier = 'resnet'
+    # classifier = 'cnn'
+    # # archive_name = 'UCRArchive_2018'
+    # archive_name = 'new'
+    # dataset_name = 'GunPoint'
+    classifier = classifier_name
 
     if dataset_name == 'Gun_Point':
         save_name = 'GunPoint'
     else:
         save_name = dataset_name
     max_length = 2000
-    datasets_dict = read_dataset(root_dir, archive_name, dataset_name)
+    # datasets_dict = read_dataset(root_dir, archive_name, dataset_name)
+    datasets_dict = read_dataset(root_dir, archive_name, dataset_name, file_ext, remove_docstr)
 
     x_train = datasets_dict[dataset_name][0]
     y_train = datasets_dict[dataset_name][1]
     y_test = datasets_dict[dataset_name][3]
 
+    # TODO: change to multivariate
     # transform to binary labels
     enc = sklearn.preprocessing.OneHotEncoder()
     enc.fit(np.concatenate((y_train, y_test), axis=0).reshape(-1, 1))
@@ -618,10 +662,12 @@ def viz_cam(root_dir):
     x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], 1)
 
     model = keras.models.load_model(
-        root_dir + 'results/' + classifier + '/' + archive_name + '/' + dataset_name + '/best_model.hdf5')
+        root_dir + '/' + 'results/' + classifier + '/' + archive_name + itr + '/' + dataset_name + '/best_model.hdf5')
 
     # filters
     w_k_c = model.layers[-1].get_weights()[0]  # weights for each filter k for each class c
+    print("w_k_c:", w_k_c)
+    print("w_k_c.shape:", w_k_c.shape)
 
     # the same input
     new_input_layer = model.inputs
@@ -633,14 +679,21 @@ def viz_cam(root_dir):
     classes = np.unique(y_train)
 
     for c in classes:
+        print("c:", c)
         plt.figure()
         count = 0
         c_x_train = x_train[np.where(y_train == c)]
         for ts in c_x_train:
+            print("ts:", ts)
             ts = ts.reshape(1, -1, 1)
+            print("ts:", ts)
             [conv_out, predicted] = new_feed_forward([ts])
+            print("conv_out:", conv_out)
+            print("predicted:", predicted)
             pred_label = np.argmax(predicted)
             orig_label = np.argmax(enc.transform([[c]]))
+            print("pred_label:", pred_label)
+            print("orig_label:", orig_label)
             if pred_label == orig_label:
                 cas = np.zeros(dtype=np.float, shape=(conv_out.shape[1]))
                 for k, w in enumerate(w_k_c[:, orig_label]):

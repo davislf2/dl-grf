@@ -4,7 +4,10 @@
 import tensorflow.keras as keras
 import tensorflow as tf
 import numpy as np
-import time 
+import os
+import time
+import ast
+from copy import deepcopy
 
 from utils.utils import save_logs
 from utils.utils import calculate_metrics
@@ -41,7 +44,11 @@ class Classifier_FCN:
         output_layer = keras.layers.Dense(nb_classes, activation='softmax')(gap_layer)
 
         model = keras.models.Model(inputs=input_layer, outputs=output_layer)
+        model = self.model_compile_and_callback(model)
+        
+        return model
 
+    def model_compile_and_callback(self, model):
         model.compile(loss='categorical_crossentropy', optimizer = keras.optimizers.Adam(), 
             metrics=['accuracy'])
 
@@ -53,12 +60,30 @@ class Classifier_FCN:
         model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss', 
             save_best_only=True)
 
-        self.callbacks = [reduce_lr,model_checkpoint]
+        self.callbacks = [reduce_lr, model_checkpoint]
+        return model
 
-        return model 
+    def freeze_and_change_last_layer(self, nb_classes, trainable_layers=None):
+        num_layers = len(self.model.layers)
+        print("*"*30, "old_model summary:", self.model.summary(), "*"*30)
 
-    # def fit(self, x_train, y_train, x_val, y_val, y_true):
-    def fit(self, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=2000, batch_size=16):
+        base_output = self.model.layers[num_layers-2].output # layer number obtained from model summary above
+        new_output = tf.keras.layers.Dense(activation='softmax', units=nb_classes)(base_output)
+        new_model = tf.keras.models.Model(inputs=self.model.inputs, outputs=new_output)
+        
+        # self.model = deepcopy(new_model)
+        self.model = new_model
+        print("*"*30, "new_model summary:", self.model.summary(), "*"*30)
+        trainable_layers = ast.literal_eval(trainable_layers)
+        for i, layer in enumerate(self.model.layers):
+            if trainable_layers and i in trainable_layers:
+                layer.trainable = True
+            else:
+                layer.trainable = False
+            print(f'i:{i}, layer.name:{layer.name}, layer.trainable:{layer.trainable}')
+
+    def fit(self, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=2000, batch_size=16, train_method='normal', trainable_layers=None, nb_classes=None):
+        print("train_method:", train_method)
         nb_epochs = int(nb_epochs)
         batch_size = int(batch_size)
         if not tf.test.is_gpu_available:
@@ -77,6 +102,9 @@ class Classifier_FCN:
             mini_batch_size = int(min(x_train.shape[0] / 10, batch_size))
 
             start_time = time.time() 
+            if 'finetune' in train_method:
+                self.freeze_and_change_last_layer(nb_classes, trainable_layers=trainable_layers)
+                self.model = self.model_compile_and_callback(self.model)
 
             if x_val is not None and y_val is not None:
                 hist = self.model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
@@ -87,9 +115,16 @@ class Classifier_FCN:
             
             duration = time.time() - start_time
 
-            self.model.save(self.output_directory + 'last_model.hdf5')
+            if 'normal' not in train_method:
+                last_model_file_path = self.output_directory + f'{train_method}_last_model.hdf5'
+                best_model_file_path = self.output_directory + f'{train_method}_best_model.hdf5'
+                os.rename(self.output_directory + 'best_model.hdf5', best_model_file_path)
+            else:
+                last_model_file_path = self.output_directory + 'last_model.hdf5'
+                best_model_file_path = self.output_directory + 'best_model.hdf5'
 
-            model = keras.models.load_model(self.output_directory + 'best_model.hdf5')
+            self.model.save(last_model_file_path)
+            model = keras.models.load_model(best_model_file_path)
 
             # y_pred = model.predict(x_val)
             y_pred = model.predict(x_test)
@@ -97,7 +132,7 @@ class Classifier_FCN:
             # convert the predicted from binary to integer 
             y_pred = np.argmax(y_pred, axis=1)
 
-            df_metrics = save_logs(self.output_directory, hist, y_pred, y_true, duration)
+            df_metrics = save_logs(self.output_directory, hist, y_pred, y_true, duration, train_method=train_method)
 
             keras.backend.clear_session()
 

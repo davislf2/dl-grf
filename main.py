@@ -6,6 +6,7 @@ from utils.utils import visualize_filter
 from utils.utils import viz_for_survey_paper
 from utils.utils import viz_cam
 import os
+import shutil
 import numpy as np
 import sys
 import sklearn
@@ -33,7 +34,7 @@ def set_random_seed(seed: int = 1):
     random.seed(seed)
 
 
-def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only, nb_epochs=None, batch_size=None):
+def data_preprocessing(datasets_dict, dataset_name, val_proportion=0.0):
     x_train = datasets_dict[dataset_name][0]
     y_train = datasets_dict[dataset_name][1]
     x_test = datasets_dict[dataset_name][2]
@@ -45,16 +46,22 @@ def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only, nb_epoc
     print("y_test.shape:", y_test.shape)
     nb_classes = len(np.unique(np.concatenate((y_train, y_test), axis=0)))
 
-    try:
-        sskf = StratifiedShuffleSplit(n_splits=1, test_size=val_proportion)
-        splits = sskf.split(x_train, y_train)
+    if val_proportion > 0.0:
+        try:
+            sskf = StratifiedShuffleSplit(n_splits=1, test_size=val_proportion)
+            splits = sskf.split(x_train, y_train)
 
-        for n, (train_index, val_index) in enumerate(splits):
-            x_train_small = np.array([x_train[i] for i in train_index])
-            x_val = np.array([x_train[i] for i in val_index])
-            y_train_small = np.array([y_train[i] for i in train_index])
-            y_val = np.array([y_train[i] for i in val_index])
-    except:
+            for n, (train_index, val_index) in enumerate(splits):
+                x_train_small = np.array([x_train[i] for i in train_index])
+                x_val = np.array([x_train[i] for i in val_index])
+                y_train_small = np.array([y_train[i] for i in train_index])
+                y_val = np.array([y_train[i] for i in val_index])
+        except:
+            x_train_small = x_train
+            x_val = None
+            y_train_small = y_train
+            y_val = None
+    else:
         x_train_small = x_train
         x_val = None
         y_train_small = y_train
@@ -100,25 +107,50 @@ def fit_classifier(datasets_dict, verbose, val_proportion, do_pred_only, nb_epoc
     if x_val is not None:
         print("x_val.shape:", x_val.shape)
     print("x_test.shape:", x_test.shape)
-    
     # input_shape = x_train.shape[1:]
     input_shape = x_train_small.shape[1:]
     print("input_shape:", input_shape)
-    classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose)
+    return x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes
 
-    # classifier.fit(x_train, y_train, x_test, y_test, y_true)
+def fit_classifier(datasets_dict, dataset_name, verbose, val_proportion, do_pred_only, nb_epochs=None, batch_size=None, trainable_layers=None, nb_epochs_finetune=None):
+    print("len(datasets_dict[dataset_name]):", len(datasets_dict[dataset_name]))
+    if len(datasets_dict[dataset_name]) == 8:
+        train_method = 'pretrain'
+        p_datasets_dict = {dataset_name: None}
+        p_datasets_dict[dataset_name] = datasets_dict[dataset_name][:4]
+        x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(p_datasets_dict, dataset_name, val_proportion=0.0)
+        classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose)
+        classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs, batch_size, train_method, nb_classes=nb_classes)
+        
+        train_method = 'finetune'
+        o_datasets_dict = {dataset_name: None}
+        o_datasets_dict[dataset_name] = datasets_dict[dataset_name][4:]
+        x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(o_datasets_dict, dataset_name, val_proportion=0.0)
+        if nb_epochs_finetune:
+            nb_epochs = nb_epochs_finetune
+        classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs, batch_size, train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
+        
+    else:
+        train_method = 'normal'
+        x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(datasets_dict, dataset_name, val_proportion=val_proportion)
+        classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose)
+        classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs, batch_size, train_method, nb_classes=nb_classes)
+
+
+def classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs=None, batch_size=None, train_method='normal', trainable_layers=None, nb_classes=None):
     if nb_epochs:
         if batch_size:
-            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs, batch_size)
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs=nb_epochs, batch_size=batch_size, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
         else:
-            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs=nb_epochs)
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs=nb_epochs, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
     else:
         if batch_size:
-            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, batch_size=batch_size)
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, batch_size=batch_size, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
         else:
-            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only)
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
 
-def create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose=True):
+
+def create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose=True, train_method='normal'):
     if classifier_name == 'fcn':
         from classifiers import fcn
         return fcn.Classifier_FCN(output_directory, input_shape, nb_classes, verbose)
@@ -207,15 +239,34 @@ if __name__ == '__main__':
     parser.add_argument('--nb_epochs',
                         help='number of epochs',
                         default=None)
+    parser.add_argument('--nb_epochs_finetune',
+                        help='number of epochs',
+                        default=None)
     parser.add_argument('--batch_size',
                         help='batch size in train',
                         default=None)
+    parser.add_argument('--trainable_layers',
+                        help='trainable layers during finetuning',
+                        default=None)
+    parser.add_argument('--retrain',
+                        help='remove existing models and retrain',
+                        default=True)
+    # parser.add_argument('--train_method',
+    #                     help='3 approaches: pretrain, pretrain_finetune, finetune',
+    #                     default='pretrain')
     args = parser.parse_args()
     root_dir = args.dir
 
     # change this directory for your machine
     # root_dir = '/b/home/uha/hfawaz-datas/dl-tsc-temp/'
     # root_dir = '/oradiskvdb/work/side/Gait/dl-4-tsc/data'
+    
+    archive_name = args.archive
+    dataset_name = args.dataset
+    classifier_name = args.classifier
+    itr = args.itr
+    if itr == '_itr_0':
+        itr = ''
 
     if args.action == 'run_all':
         for classifier_name in CLASSIFIERS:
@@ -256,7 +307,7 @@ if __name__ == '__main__':
     elif args.action == 'viz_for_survey_paper':
         viz_for_survey_paper(root_dir)
     elif args.action == 'viz_cam':
-        viz_cam(root_dir)
+        viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, args.file_ext, args.remove_docstr)
     elif args.action == 'generate_results_csv':
         res = generate_results_csv('results.csv', root_dir)
         print(res.to_string())
@@ -266,13 +317,6 @@ if __name__ == '__main__':
         # dataset_name = sys.argv[2]
         # classifier_name = sys.argv[3]
         # itr = sys.argv[4]
-        archive_name = args.archive
-        dataset_name = args.dataset
-        classifier_name = args.classifier
-        itr = args.itr
-        
-        if itr == '_itr_0':
-            itr = ''
 
         output_directory = root_dir + '/results/' + classifier_name + '/' + archive_name + itr + '/' + \
                         dataset_name + '/'
@@ -281,17 +325,20 @@ if __name__ == '__main__':
 
         print('Method: ', archive_name, dataset_name, classifier_name, itr)
 
-        if os.path.exists(test_dir_df_metrics):
-            print('Already done')
-        else:
+        if args.retrain:
+            if os.path.exists(test_dir_df_metrics):
+                os.remove(test_dir_df_metrics)
 
             create_directory(output_directory)
             datasets_dict = read_dataset(root_dir, archive_name, dataset_name, args.file_ext, args.remove_docstr)
-            # print("datasets_dict:", datasets_dict)
-
-            fit_classifier(datasets_dict, args.verbose, args.val_proportion, args.do_pred_only, args.nb_epochs, args.batch_size)
-
+            fit_classifier(datasets_dict, dataset_name, args.verbose, args.val_proportion, args.do_pred_only, args.nb_epochs, args.batch_size, args.trainable_layers, args.nb_epochs_finetune)
+            
             print('DONE')
 
             # the creation of this directory means
             create_directory(output_directory + '/DONE')
+        else:
+            if os.path.exists(test_dir_df_metrics):
+                print(f'Already done in {test_dir_df_metrics}')
+            else:
+                print(f'Not retrain and no {test_dir_df_metrics}. Please set --retrain True')
