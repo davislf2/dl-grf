@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 from utils.utils import save_logs
 from utils.utils import calculate_metrics
+from utils.utils import model_compile_and_callback, freeze_and_make_layer_trainable, fit_model, predict_model
 
 class Classifier_MLP:
 
@@ -42,74 +43,29 @@ class Classifier_MLP:
         output_layer = keras.layers.Dense(nb_classes, activation='softmax')(output_layer)
 
         model = keras.models.Model(inputs=input_layer, outputs=output_layer)
-
-        model.compile(loss='categorical_crossentropy', optimizer=keras.optimizers.Adadelta(),
-            metrics=['accuracy'])
-
-        reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=200, min_lr=0.1)
-
-        file_path = self.output_directory+'best_model.hdf5' 
-
-        model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss', 
-            save_best_only=True)
-
-        self.callbacks = [reduce_lr,model_checkpoint]
-
+        model, self.callbacks = model_compile_and_callback(model, self.output_directory, optimizer=keras.optimizers.Adadelta())
+        
         return model
 
-    # def fit(self, x_train, y_train, x_val, y_val, y_true):
-    def fit(self, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=5000, batch_size=16):
-        nb_epochs = int(nb_epochs)
-        batch_size = int(batch_size)
-        if not tf.test.is_gpu_available:
-            print('error')
-            exit()
-        if do_pred_only:
-            results = self.model.evaluate(x_test, y_test, batch_size=128)
-            print("results:", results)
-            y_pred = self.model.predict(x_test)
-            print("y_pred:", y_pred)
-            # convert the predicted from binary to integer 
-            y_pred = np.argmax(y_pred , axis=1)
-        else:
-            # x_val and y_val are only used to monitor the test loss and NOT for training  
+    def fit(self, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=2000, batch_size=16, train_method='normal', trainable_layers=None, nb_classes=None):
+        df_metrics, model, output_directory, callbacks, verbose = fit_model(self.model, 
+                                                                            self.output_directory, 
+                                                                            self.callbacks, 
+                                                                            self.verbose, 
+                                                                            x_train, 
+                                                                            y_train, 
+                                                                            x_val, 
+                                                                            y_val, 
+                                                                            x_test, 
+                                                                            y_test, 
+                                                                            y_true, 
+                                                                            do_pred_only=do_pred_only, 
+                                                                            nb_epochs=nb_epochs, 
+                                                                            batch_size=batch_size, 
+                                                                            train_method=train_method, 
+                                                                            trainable_layers=trainable_layers, 
+                                                                            nb_classes=nb_classes)
+        return df_metrics
 
-            mini_batch_size = int(min(x_train.shape[0] / 10, batch_size))
-
-            start_time = time.time() 
-
-            if x_val is not None and y_val is not None:
-                hist = self.model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
-                    verbose=self.verbose, validation_data=(x_val, y_val), callbacks=self.callbacks)
-            else:
-                hist = self.model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
-                    verbose=self.verbose, callbacks=self.callbacks)
-            
-            duration = time.time() - start_time
-
-            self.model.save(self.output_directory + 'last_model.hdf5')
-
-            model = keras.models.load_model(self.output_directory + 'best_model.hdf5')
-
-            # y_pred = model.predict(x_val)
-            y_pred = model.predict(x_test)
-
-            # convert the predicted from binary to integer 
-            y_pred = np.argmax(y_pred, axis=1)
-
-            df_metrics = save_logs(self.output_directory, hist, y_pred, y_true, duration)
-
-            keras.backend.clear_session()
-
-            return df_metrics
-
-    def predict(self, x_test, y_true,x_train,y_train,y_test,return_df_metrics = True):
-        model_path = self.output_directory + 'best_model.hdf5'
-        model = keras.models.load_model(model_path)
-        y_pred = model.predict(x_test)
-        if return_df_metrics:
-            y_pred = np.argmax(y_pred, axis=1)
-            df_metrics = calculate_metrics(y_true, y_pred, 0.0)
-            return df_metrics
-        else:
-            return y_pred
+    def predict(self, x_test, y_true, x_train, y_train, y_test, return_df_metrics = True):
+        return predict_model(self.output_directory, x_test, y_true, x_train, y_train, y_test, return_df_metrics = return_df_metrics)

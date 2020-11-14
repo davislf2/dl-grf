@@ -112,14 +112,14 @@ def data_preprocessing(datasets_dict, dataset_name, val_proportion=0.0):
     print("input_shape:", input_shape)
     return x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes
 
-def fit_classifier(datasets_dict, dataset_name, verbose, val_proportion, do_pred_only, nb_epochs=None, batch_size=None, trainable_layers=None, nb_epochs_finetune=None):
+def fit_classifier(datasets_dict, dataset_name, verbose, val_proportion, do_pred_only, nb_epochs=None, batch_size=None, trainable_layers=None, nb_epochs_finetune=None, output_directory=None, min_lr=0.0001):
     print("len(datasets_dict[dataset_name]):", len(datasets_dict[dataset_name]))
     if len(datasets_dict[dataset_name]) == 8:
         train_method = 'pretrain'
         p_datasets_dict = {dataset_name: None}
         p_datasets_dict[dataset_name] = datasets_dict[dataset_name][:4]
         x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(p_datasets_dict, dataset_name, val_proportion=0.0)
-        classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose)
+        classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose, min_lr)
         classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs, batch_size, train_method, nb_classes=nb_classes)
         
         train_method = 'finetune'
@@ -133,7 +133,7 @@ def fit_classifier(datasets_dict, dataset_name, verbose, val_proportion, do_pred
     else:
         train_method = 'normal'
         x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(datasets_dict, dataset_name, val_proportion=val_proportion)
-        classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose)
+        classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose, min_lr)
         classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs, batch_size, train_method, nb_classes=nb_classes)
 
 
@@ -150,7 +150,7 @@ def classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_tes
             classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
 
 
-def create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose=True, train_method='normal'):
+def create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose=True, train_method='normal', min_lr=0.0001):
     if classifier_name == 'fcn':
         from classifiers import fcn
         return fcn.Classifier_FCN(output_directory, input_shape, nb_classes, verbose)
@@ -177,7 +177,7 @@ def create_classifier(classifier_name, input_shape, nb_classes, output_directory
         return mcdcnn.Classifier_MCDCNN(output_directory, input_shape, nb_classes, verbose)
     if classifier_name == 'cnn':  # Time-CNN
         from classifiers import cnn
-        return cnn.Classifier_CNN(output_directory, input_shape, nb_classes, verbose)
+        return cnn.Classifier_CNN(output_directory, input_shape, nb_classes, verbose, min_lr=min_lr)
     if classifier_name == 'inception':
         from classifiers import inception
         return inception.Classifier_INCEPTION(output_directory, input_shape, nb_classes, verbose)
@@ -251,6 +251,10 @@ if __name__ == '__main__':
     parser.add_argument('--retrain',
                         help='remove existing models and retrain',
                         default=True)
+    parser.add_argument('--min_lr',
+                        help='minimum learning rate',
+                        default=0.0001)
+
     # parser.add_argument('--train_method',
     #                     help='3 approaches: pretrain, pretrain_finetune, finetune',
     #                     default='pretrain')
@@ -331,7 +335,7 @@ if __name__ == '__main__':
 
             create_directory(output_directory)
             datasets_dict = read_dataset(root_dir, archive_name, dataset_name, args.file_ext, args.remove_docstr)
-            fit_classifier(datasets_dict, dataset_name, args.verbose, args.val_proportion, args.do_pred_only, args.nb_epochs, args.batch_size, args.trainable_layers, args.nb_epochs_finetune)
+            fit_classifier(datasets_dict, dataset_name, args.verbose, args.val_proportion, args.do_pred_only, args.nb_epochs, args.batch_size, args.trainable_layers, args.nb_epochs_finetune, output_directory, args.min_lr)
             
             print('DONE')
 

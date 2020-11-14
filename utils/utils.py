@@ -27,6 +27,10 @@ from sklearn.preprocessing import LabelEncoder
 
 from scipy.interpolate import interp1d
 from scipy.io import loadmat
+import tensorflow as tf
+import tensorflow.keras as keras
+import ast
+import time
 
 
 def readucr(filename, remove_docstr=False):
@@ -200,6 +204,170 @@ def read_all_datasets(root_dir, archive_name, split_val=False):
             DATASET_NAMES[i] = dataset_names_to_sort[i][0]
 
     return datasets_dict
+
+### Note: Original version, which can work
+# def model_compile_and_callback(model, output_directory):
+#     # model.compile(loss='mean_squared_error', optimizer = keras.optimizers.Adam(),
+#     #               metrics=['accuracy'])
+
+#     print("loss:", 'categorical_crossentropy')
+#     print("optimizer:", keras.optimizers.Adam())
+#     model.compile(loss='categorical_crossentropy', optimizer = keras.optimizers.Adam(), metrics=['accuracy'])
+
+#     reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=50, 
+#         min_lr=0.0001)
+
+#     file_path = output_directory+'best_model.hdf5'
+
+#     model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss', 
+#         save_best_only=True)
+
+#     callbacks = [reduce_lr, model_checkpoint]
+#     return model, callbacks
+
+
+def model_compile_and_callback(model, output_directory, loss = 'categorical_crossentropy', optimizer = 'adam', min_lr = 0.0001):
+    
+    # model.compile(loss='mean_squared_error', optimizer = keras.optimizers.Adam(),
+    #               metrics=['accuracy'])
+
+    # Note: it can't use optimizer = keras.optimizers.Adam() in args of model_compile_and_callback, which will cause an error
+    model.compile(loss=loss, optimizer = optimizer, metrics=['accuracy'])
+
+    # reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=50, 
+    #     min_lr=0.0001)
+    reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=50, 
+        min_lr = min_lr)
+
+    file_path = output_directory + 'best_model.hdf5'
+
+    # Note: it can't use optimizer = keras.optimizers.Adam() in args of model_compile_and_callback, you need save_weights_only
+    # model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss', 
+    #     save_best_only=True, save_weights_only=True)
+
+    model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss', 
+        save_best_only=True)
+
+    callbacks = [reduce_lr, model_checkpoint]
+    return model, callbacks
+
+
+# def freeze_and_make_layer_trainable(model, nb_classes, trainable_layers=None):
+#     num_layers = len(model.layers)
+#     # print("*"*30, "old_model summary:", model.summary(), "*"*30)
+#     print("*"*30, "old_model summary:", "*"*30)
+#     model.summary()
+
+#     new_model = keras.Sequential()
+#     for layer in model.layers[:-1]: # go through until last layer
+#         layer._name = layer.name + str("_2")
+#         new_model.add(layer)
+#     new_model.add(keras.layers.Dense(activation='softmax', units=nb_classes))
+#     new_model._name = 'finetuned_model'
+
+#     print("*"*30, "new_model summary:", new_model.summary(), "*"*30)
+#     trainable_layers = ast.literal_eval(trainable_layers)
+#     for i, layer in enumerate(new_model.layers):
+#         if trainable_layers and i in trainable_layers:
+#             layer.trainable = True
+#         else:
+#             layer.trainable = False
+#         print(f'i:{i}, layer.name:{layer.name}, layer.trainable:{layer.trainable}')
+#     return new_model
+
+
+def freeze_and_make_layer_trainable(model, nb_classes, trainable_layers=None):
+    num_layers = len(model.layers)
+    # print("*"*30, "old_model summary:", model.summary(), "*"*30)
+    print("*"*30, "old_model summary:", "*"*30)
+    model.summary()
+
+    base_output = model.layers[num_layers-2].output # layer number obtained from model summary above
+    new_output = keras.layers.Dense(activation='softmax', units=nb_classes, name='softmax_layer')(base_output)
+    new_model = keras.models.Model(inputs=model.inputs, outputs=new_output, name='finetuned_model')
+
+    # model = deepcopy(new_model)
+    print("*"*30, "new_model summary:", new_model.summary(), "*"*30)
+    trainable_layers = ast.literal_eval(trainable_layers)
+    for i, layer in enumerate(new_model.layers):
+        if trainable_layers and i in trainable_layers:
+            layer.trainable = True
+        else:
+            layer.trainable = False
+        print(f'i:{i}, layer.name:{layer.name}, layer.trainable:{layer.trainable}')
+    return new_model
+
+def fit_model(model, output_directory, callbacks, verbose, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=2000, batch_size=16, train_method='normal', trainable_layers=None, nb_classes=None, min_lr=0.0001):
+    print('-'*20, 'fit_model', '-'*20)
+    print("train_method:", train_method)
+    nb_epochs = int(nb_epochs)
+    batch_size = int(batch_size)
+    if not tf.test.is_gpu_available:
+        print('error')
+        exit()
+    if do_pred_only:
+        results = model.evaluate(x_test, y_test, batch_size=128)
+        print("results:", results)
+        y_pred = model.predict(x_test)
+        print("y_pred:", y_pred)
+        # convert the predicted from binary to integer 
+        y_pred = np.argmax(y_pred , axis=1)
+    else:
+        # x_val and y_val are only used to monitor the test loss and NOT for training  
+
+        mini_batch_size = int(min(x_train.shape[0] / 10, batch_size))
+
+        start_time = time.time() 
+        if 'finetune' in train_method:
+            model = freeze_and_make_layer_trainable(model, nb_classes, trainable_layers=trainable_layers)
+            model, callbacks = model_compile_and_callback(model, output_directory, min_lr=min_lr)
+
+        if x_val is not None and y_val is not None:
+            hist = model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
+                verbose=verbose, validation_data=(x_val, y_val), callbacks=callbacks)
+        else:
+            hist = model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
+                verbose=verbose, callbacks=callbacks)
+        
+        duration = time.time() - start_time
+
+        if 'normal' not in train_method:
+            last_model_file_path = output_directory + f'{train_method}_last_model.hdf5'
+            best_model_file_path = output_directory + f'{train_method}_best_model.hdf5'
+            os.rename(output_directory + 'best_model.hdf5', best_model_file_path)
+        else:
+            last_model_file_path = output_directory + 'last_model.hdf5'
+            best_model_file_path = output_directory + 'best_model.hdf5'
+
+        model.save(last_model_file_path)
+        model_loaded = keras.models.load_model(best_model_file_path)
+
+        # y_pred = model.predict(x_val)
+        y_pred = model_loaded.predict(x_test)
+
+        # convert the predicted from binary to integer 
+        y_pred = np.argmax(y_pred, axis=1)
+
+        df_metrics = save_logs(output_directory, hist, y_pred, y_true, duration, train_method=train_method)
+
+        keras.backend.clear_session()
+
+        return df_metrics, model, output_directory, callbacks, verbose
+
+
+def predict_model(output_directory, x_test, y_true, x_train, y_train, y_test, return_df_metrics = True):
+    start_time = time.time()
+    model_path = output_directory + 'best_model.hdf5'
+    model = keras.models.load_model(model_path)
+    y_pred = model.predict(x_test)
+    if return_df_metrics:
+        y_pred = np.argmax(y_pred, axis=1)
+        df_metrics = calculate_metrics(y_true, y_pred, 0.0)
+        return df_metrics
+    else:
+        test_duration = time.time() - start_time
+        save_test_duration(output_directory + 'test_duration.csv', test_duration)
+        return y_pred
 
 
 def get_func_length(x_train, x_test, func):
