@@ -1,36 +1,32 @@
+import time
+import ast
+import tensorflow.keras as keras
+import tensorflow as tf
+from scipy.io import loadmat
+from scipy.interpolate import interp1d
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import recall_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import accuracy_score
+from utils.constants import MTS_DATASET_NAMES
+from utils.constants import ITERATIONS
+from utils.constants import CLASSIFIERS
+from utils.constants import ARCHIVE_NAMES as ARCHIVE_NAMES
+from utils.constants import UNIVARIATE_DATASET_NAMES_2018 as DATASET_NAMES_2018
+from utils.constants import UNIVARIATE_DATASET_NAMES as DATASET_NAMES
+import utils
+import operator
+import os
+import matplotlib.pyplot as plt
 from builtins import print
 import numpy as np
 import pandas as pd
 import matplotlib
 
 matplotlib.use('agg')
-import matplotlib.pyplot as plt
 
 matplotlib.rcParams['font.family'] = 'sans-serif'
 matplotlib.rcParams['font.sans-serif'] = 'Arial'
-import os
-import operator
-
-import utils
-
-from utils.constants import UNIVARIATE_DATASET_NAMES as DATASET_NAMES
-from utils.constants import UNIVARIATE_DATASET_NAMES_2018 as DATASET_NAMES_2018
-from utils.constants import ARCHIVE_NAMES  as ARCHIVE_NAMES
-from utils.constants import CLASSIFIERS
-from utils.constants import ITERATIONS
-from utils.constants import MTS_DATASET_NAMES
-
-from sklearn.metrics import accuracy_score
-from sklearn.metrics import precision_score
-from sklearn.metrics import recall_score
-from sklearn.preprocessing import LabelEncoder
-
-from scipy.interpolate import interp1d
-from scipy.io import loadmat
-import tensorflow as tf
-import tensorflow.keras as keras
-import ast
-import time
 
 
 def readucr(filename, remove_docstr=False):
@@ -57,7 +53,8 @@ def create_directory(directory_path):
 
 
 def create_path(root_dir, classifier_name, archive_name):
-    output_directory = root_dir + '/results/' + classifier_name + '/' + archive_name + '/'
+    output_directory = root_dir + '/results/' + \
+        classifier_name + '/' + archive_name + '/'
     if os.path.exists(output_directory):
         return None
     else:
@@ -70,7 +67,8 @@ def read_dataset(root_dir, archive_name, dataset_name, file_ext='', remove_docst
     cur_root_dir = root_dir.replace('-temp', '')
 
     if archive_name == 'mts_archive':
-        file_name = cur_root_dir + '/archives/' + archive_name + '/' + dataset_name + '/'
+        file_name = cur_root_dir + '/archives/' + \
+            archive_name + '/' + dataset_name + '/'
         x_train = np.load(file_name + 'x_train.npy')
         y_train = np.load(file_name + 'y_train.npy')
         x_test = np.load(file_name + 'x_test.npy')
@@ -85,7 +83,8 @@ def read_dataset(root_dir, archive_name, dataset_name, file_ext='', remove_docst
                                            y_test.copy())
 
     elif archive_name == 'pretrain':
-        file_name = cur_root_dir + '/archives/' + archive_name + '/' + dataset_name + '/'
+        file_name = cur_root_dir + '/archives/' + \
+            archive_name + '/' + dataset_name + '/'
         p_x_train = np.load(file_name + 'PreTrain_x_train.npy')
         p_y_train = np.load(file_name + 'PreTrain_y_train.npy')
         p_x_test = np.load(file_name + 'PreTrain_x_test.npy')
@@ -99,10 +98,13 @@ def read_dataset(root_dir, archive_name, dataset_name, file_ext='', remove_docst
                                        o_x_train.copy(), o_y_train.copy(), o_x_test.copy(), o_y_test.copy())
 
     elif archive_name == 'UCRArchive_2018':
-        root_dir_dataset = cur_root_dir + '/archives/' + archive_name + '/' + dataset_name + '/'
-        df_train = pd.read_csv(root_dir_dataset + '/' + dataset_name + '_TRAIN.tsv', sep='\t', header=None)
+        root_dir_dataset = cur_root_dir + '/archives/' + \
+            archive_name + '/' + dataset_name + '/'
+        df_train = pd.read_csv(
+            root_dir_dataset + '/' + dataset_name + '_TRAIN.tsv', sep='\t', header=None)
 
-        df_test = pd.read_csv(root_dir_dataset + '/' + dataset_name + '_TEST.tsv', sep='\t', header=None)
+        df_test = pd.read_csv(root_dir_dataset + '/' +
+                              dataset_name + '_TEST.tsv', sep='\t', header=None)
 
         y_train = df_train.values[:, 0]
         y_test = df_test.values[:, 0]
@@ -128,8 +130,10 @@ def read_dataset(root_dir, archive_name, dataset_name, file_ext='', remove_docst
         datasets_dict[dataset_name] = (x_train.copy(), y_train.copy(), x_test.copy(),
                                        y_test.copy())
     else:
-        file_name = cur_root_dir + '/archives/' + archive_name + '/' + dataset_name + '/' + dataset_name
-        x_train, y_train = readucr(file_name + '_TRAIN' + file_ext, remove_docstr)
+        file_name = cur_root_dir + '/archives/' + \
+            archive_name + '/' + dataset_name + '/' + dataset_name
+        x_train, y_train = readucr(
+            file_name + '_TRAIN' + file_ext, remove_docstr)
         x_test, y_test = readucr(file_name + '_TEST' + file_ext, remove_docstr)
         datasets_dict[dataset_name] = (x_train.copy(), y_train.copy(), x_test.copy(),
                                        y_test.copy())
@@ -145,7 +149,8 @@ def read_all_datasets(root_dir, archive_name, split_val=False):
     if archive_name == 'mts_archive':
 
         for dataset_name in MTS_DATASET_NAMES:
-            root_dir_dataset = cur_root_dir + '/archives/' + archive_name + '/' + dataset_name + '/'
+            root_dir_dataset = cur_root_dir + '/archives/' + \
+                archive_name + '/' + dataset_name + '/'
 
             x_train = np.load(root_dir_dataset + 'x_train.npy')
             y_train = np.load(root_dir_dataset + 'y_train.npy')
@@ -156,11 +161,14 @@ def read_all_datasets(root_dir, archive_name, split_val=False):
                                            y_test.copy())
     elif archive_name == 'UCRArchive_2018':
         for dataset_name in DATASET_NAMES_2018:
-            root_dir_dataset = cur_root_dir + '/archives/' + archive_name + '/' + dataset_name + '/'
+            root_dir_dataset = cur_root_dir + '/archives/' + \
+                archive_name + '/' + dataset_name + '/'
 
-            df_train = pd.read_csv(root_dir_dataset + '/' + dataset_name + '_TRAIN.tsv', sep='\t', header=None)
+            df_train = pd.read_csv(
+                root_dir_dataset + '/' + dataset_name + '_TRAIN.tsv', sep='\t', header=None)
 
-            df_test = pd.read_csv(root_dir_dataset + '/' + dataset_name + '_TEST.tsv', sep='\t', header=None)
+            df_test = pd.read_csv(
+                root_dir_dataset + '/' + dataset_name + '_TEST.tsv', sep='\t', header=None)
 
             y_train = df_train.values[:, 0]
             y_test = df_test.values[:, 0]
@@ -188,7 +196,8 @@ def read_all_datasets(root_dir, archive_name, split_val=False):
 
     else:
         for dataset_name in DATASET_NAMES:
-            root_dir_dataset = cur_root_dir + '/archives/' + archive_name + '/' + dataset_name + '/'
+            root_dir_dataset = cur_root_dir + '/archives/' + \
+                archive_name + '/' + dataset_name + '/'
             file_name = root_dir_dataset + dataset_name
             x_train, y_train = readucr(file_name + '_TRAIN')
             x_test, y_test = readucr(file_name + '_TEST')
@@ -205,7 +214,7 @@ def read_all_datasets(root_dir, archive_name, split_val=False):
 
     return datasets_dict
 
-### Note: Original version, which can work
+# Note: Original version, which can work
 # def model_compile_and_callback(model, output_directory):
 #     # model.compile(loss='mean_squared_error', optimizer = keras.optimizers.Adam(),
 #     #               metrics=['accuracy'])
@@ -214,39 +223,39 @@ def read_all_datasets(root_dir, archive_name, split_val=False):
 #     print("optimizer:", keras.optimizers.Adam())
 #     model.compile(loss='categorical_crossentropy', optimizer = keras.optimizers.Adam(), metrics=['accuracy'])
 
-#     reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=50, 
+#     reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=50,
 #         min_lr=0.0001)
 
 #     file_path = output_directory+'best_model.hdf5'
 
-#     model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss', 
+#     model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss',
 #         save_best_only=True)
 
 #     callbacks = [reduce_lr, model_checkpoint]
 #     return model, callbacks
 
 
-def model_compile_and_callback(model, output_directory, loss = 'categorical_crossentropy', optimizer = 'adam', min_lr = 0.0001):
-    
+def model_compile_and_callback(model, output_directory, loss='categorical_crossentropy', optimizer='adam', min_lr=0.0001):
+
     # model.compile(loss='mean_squared_error', optimizer = keras.optimizers.Adam(),
     #               metrics=['accuracy'])
 
     # Note: it can't use optimizer = keras.optimizers.Adam() in args of model_compile_and_callback, which will cause an error
-    model.compile(loss=loss, optimizer = optimizer, metrics=['accuracy'])
+    model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 
-    # reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=50, 
+    # reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=50,
     #     min_lr=0.0001)
-    reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=50, 
-        min_lr = min_lr)
+    reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=50,
+                                                  min_lr=min_lr)
 
     file_path = output_directory + 'best_model.hdf5'
 
     # Note: it can't use optimizer = keras.optimizers.Adam() in args of model_compile_and_callback, you need save_weights_only
-    # model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss', 
+    # model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss',
     #     save_best_only=True, save_weights_only=True)
 
-    model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss', 
-        save_best_only=True)
+    model_checkpoint = keras.callbacks.ModelCheckpoint(filepath=file_path, monitor='loss',
+                                                       save_best_only=True)
 
     callbacks = [reduce_lr, model_checkpoint]
     return model, callbacks
@@ -282,9 +291,12 @@ def freeze_and_make_layer_trainable(model, nb_classes, trainable_layers=None):
     print("*"*30, "old_model summary:", "*"*30)
     model.summary()
 
-    base_output = model.layers[num_layers-2].output # layer number obtained from model summary above
-    new_output = keras.layers.Dense(activation='softmax', units=nb_classes, name='softmax_layer')(base_output)
-    new_model = keras.models.Model(inputs=model.inputs, outputs=new_output, name='finetuned_model')
+    # layer number obtained from model summary above
+    base_output = model.layers[num_layers-2].output
+    new_output = keras.layers.Dense(
+        activation='softmax', units=nb_classes, name='softmax_layer')(base_output)
+    new_model = keras.models.Model(
+        inputs=model.inputs, outputs=new_output, name='finetuned_model')
 
     # model = deepcopy(new_model)
     print("*"*30, "new_model summary:", new_model.summary(), "*"*30)
@@ -296,6 +308,7 @@ def freeze_and_make_layer_trainable(model, nb_classes, trainable_layers=None):
             layer.trainable = False
         print(f'i:{i}, layer.name:{layer.name}, layer.trainable:{layer.trainable}')
     return new_model
+
 
 def fit_model(model, output_directory, callbacks, verbose, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=2000, batch_size=16, train_method='normal', trainable_layers=None, nb_classes=None, min_lr=0.0001):
     print('-'*20, 'fit_model', '-'*20)
@@ -310,31 +323,34 @@ def fit_model(model, output_directory, callbacks, verbose, x_train, y_train, x_v
         print("results:", results)
         y_pred = model.predict(x_test)
         print("y_pred:", y_pred)
-        # convert the predicted from binary to integer 
-        y_pred = np.argmax(y_pred , axis=1)
+        # convert the predicted from binary to integer
+        y_pred = np.argmax(y_pred, axis=1)
     else:
-        # x_val and y_val are only used to monitor the test loss and NOT for training  
+        # x_val and y_val are only used to monitor the test loss and NOT for training
 
         mini_batch_size = int(min(x_train.shape[0] / 10, batch_size))
 
-        start_time = time.time() 
+        start_time = time.time()
         if 'finetune' in train_method:
-            model = freeze_and_make_layer_trainable(model, nb_classes, trainable_layers=trainable_layers)
-            model, callbacks = model_compile_and_callback(model, output_directory, min_lr=min_lr)
+            model = freeze_and_make_layer_trainable(
+                model, nb_classes, trainable_layers=trainable_layers)
+            model, callbacks = model_compile_and_callback(
+                model, output_directory, min_lr=min_lr)
 
         if x_val is not None and y_val is not None:
             hist = model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
-                verbose=verbose, validation_data=(x_val, y_val), callbacks=callbacks)
+                             verbose=verbose, validation_data=(x_val, y_val), callbacks=callbacks)
         else:
             hist = model.fit(x_train, y_train, batch_size=mini_batch_size, epochs=nb_epochs,
-                verbose=verbose, callbacks=callbacks)
-        
+                             verbose=verbose, callbacks=callbacks)
+
         duration = time.time() - start_time
 
         if 'normal' not in train_method:
             last_model_file_path = output_directory + f'{train_method}_last_model.hdf5'
             best_model_file_path = output_directory + f'{train_method}_best_model.hdf5'
-            os.rename(output_directory + 'best_model.hdf5', best_model_file_path)
+            os.rename(output_directory + 'best_model.hdf5',
+                      best_model_file_path)
         else:
             last_model_file_path = output_directory + 'last_model.hdf5'
             best_model_file_path = output_directory + 'best_model.hdf5'
@@ -345,17 +361,18 @@ def fit_model(model, output_directory, callbacks, verbose, x_train, y_train, x_v
         # y_pred = model.predict(x_val)
         y_pred = model_loaded.predict(x_test)
 
-        # convert the predicted from binary to integer 
+        # convert the predicted from binary to integer
         y_pred = np.argmax(y_pred, axis=1)
 
-        df_metrics = save_logs(output_directory, hist, y_pred, y_true, duration, train_method=train_method)
+        df_metrics = save_logs(
+            output_directory, hist, y_pred, y_true, duration, train_method=train_method)
 
         keras.backend.clear_session()
 
         return df_metrics, model, output_directory, callbacks, verbose
 
 
-def predict_model(output_directory, x_test, y_true, x_train, y_train, y_test, return_df_metrics = True):
+def predict_model(output_directory, x_test, y_true, x_train, y_train, y_test, return_df_metrics=True):
     start_time = time.time()
     model_path = output_directory + 'best_model.hdf5'
     model = keras.models.load_model(model_path)
@@ -366,7 +383,8 @@ def predict_model(output_directory, x_test, y_true, x_train, y_train, y_test, re
         return df_metrics
     else:
         test_duration = time.time() - start_time
-        save_test_duration(output_directory + 'test_duration.csv', test_duration)
+        save_test_duration(output_directory +
+                           'test_duration.csv', test_duration)
         return y_pred
 
 
@@ -499,7 +517,7 @@ def generate_results_csv(output_file_name, root_dir):
                     curr_archive_name = curr_archive_name + '_itr_' + str(it)
                 for dataset_name in datasets_dict.keys():
                     output_dir = root_dir + '/results/' + classifier_name + '/' \
-                                 + curr_archive_name + '/' + dataset_name + '/' + 'df_metrics.csv'
+                        + curr_archive_name + '/' + dataset_name + '/' + 'df_metrics.csv'
                     if not os.path.exists(output_dir):
                         continue
                     df_metrics = pd.read_csv(output_dir)
@@ -573,7 +591,8 @@ def save_logs(output_directory, hist, y_pred, y_true, duration, lr=True, y_true_
             count += 1
     # print("count:", count)
     print("accuracy:", count/len(y_pred))
-    df_metrics = calculate_metrics(y_true, y_pred, duration, y_true_val, y_pred_val)
+    df_metrics = calculate_metrics(
+        y_true, y_pred, duration, y_true_val, y_pred_val)
     if 'normal' not in train_method:
         df_metrics.to_csv(output_directory + f'{train_method}_df_metrics.csv', index=False)
     else:
@@ -597,7 +616,8 @@ def save_logs(output_directory, hist, y_pred, y_true, duration, lr=True, y_true_
     if 'normal' not in train_method:
         df_best_model.to_csv(output_directory + f'{train_method}_df_best_model.csv', index=False)
     else:
-        df_best_model.to_csv(output_directory + 'df_best_model.csv', index=False)
+        df_best_model.to_csv(output_directory +
+                             'df_best_model.csv', index=False)
 
     # for FCN there is no hyperparameters fine tuning - everything is static in code
 
@@ -631,12 +651,15 @@ def visualize_filter(root_dir):
     new_input_layer = model.inputs
     new_output_layer = [model.layers[1].output]
 
-    new_feed_forward = keras.backend.function(new_input_layer, new_output_layer)
+    new_feed_forward = keras.backend.function(
+        new_input_layer, new_output_layer)
 
     classes = np.unique(y_train)
 
-    colors = [(255 / 255, 160 / 255, 14 / 255), (181 / 255, 87 / 255, 181 / 255)]
-    colors_conv = [(210 / 255, 0 / 255, 0 / 255), (27 / 255, 32 / 255, 101 / 255)]
+    colors = [(255 / 255, 160 / 255, 14 / 255),
+              (181 / 255, 87 / 255, 181 / 255)]
+    colors_conv = [(210 / 255, 0 / 255, 0 / 255),
+                   (27 / 255, 32 / 255, 101 / 255)]
 
     idx = 10
     idx_filter = 1
@@ -651,8 +674,10 @@ def visualize_filter(root_dir):
 
         idx_c = int(c) - 1
 
-        plt.plot(c_x_train[idx], color=colors[idx_c], label='class' + str(idx_c) + '-raw')
-        plt.plot(convolved_filter_1[idx, :, idx_filter], color=colors_conv[idx_c], label='class' + str(idx_c) + '-conv')
+        plt.plot(c_x_train[idx], color=colors[idx_c],
+                 label='class' + str(idx_c) + '-raw')
+        plt.plot(convolved_filter_1[idx, :, idx_filter],
+                 color=colors_conv[idx_c], label='class' + str(idx_c) + '-conv')
         plt.legend()
 
     plt.savefig(root_dir + 'convolution-' + dataset_name + '.pdf')
@@ -684,7 +709,8 @@ def viz_perf_themes(root_dir, df):
 def viz_perf_train_size(root_dir, df):
     df_size = df.copy()
     train_sizes = []
-    datasets_dict_ucr = read_all_datasets(root_dir, archive_name='UCR_TS_Archive_2015')
+    datasets_dict_ucr = read_all_datasets(
+        root_dir, archive_name='UCR_TS_Archive_2015')
     datasets_dict_mts = read_all_datasets(root_dir, archive_name='mts_archive')
     datasets_dict = dict(datasets_dict_ucr, **datasets_dict_mts)
 
@@ -709,7 +735,8 @@ def viz_perf_train_size(root_dir, df):
 def viz_perf_classes(root_dir, df):
     df_classes = df.copy()
     class_numbers = []
-    datasets_dict_ucr = read_all_datasets(root_dir, archive_name='UCR_TS_Archive_2015')
+    datasets_dict_ucr = read_all_datasets(
+        root_dir, archive_name='UCR_TS_Archive_2015')
     datasets_dict_mts = read_all_datasets(root_dir, archive_name='mts_archive')
     datasets_dict = dict(datasets_dict_ucr, **datasets_dict_mts)
 
@@ -734,7 +761,8 @@ def viz_perf_classes(root_dir, df):
 def viz_perf_length(root_dir, df):
     df_lengths = df.copy()
     lengths = []
-    datasets_dict_ucr = read_all_datasets(root_dir, archive_name='UCR_TS_Archive_2015')
+    datasets_dict_ucr = read_all_datasets(
+        root_dir, archive_name='UCR_TS_Archive_2015')
     datasets_dict_mts = read_all_datasets(root_dir, archive_name='mts_archive')
     datasets_dict = dict(datasets_dict_ucr, **datasets_dict_mts)
 
@@ -759,7 +787,8 @@ def viz_perf_length(root_dir, df):
 def viz_plot(root_dir, df):
     df_lengths = df.copy()
     lengths = []
-    datasets_dict_ucr = read_all_datasets(root_dir, archive_name='UCR_TS_Archive_2015')
+    datasets_dict_ucr = read_all_datasets(
+        root_dir, archive_name='UCR_TS_Archive_2015')
     datasets_dict_mts = read_all_datasets(root_dir, archive_name='mts_archive')
     datasets_dict = dict(datasets_dict_ucr, **datasets_dict_mts)
 
@@ -815,7 +844,8 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
         save_name = dataset_name
     max_length = 2000
     # datasets_dict = read_dataset(root_dir, archive_name, dataset_name)
-    datasets_dict = read_dataset(root_dir, archive_name, dataset_name, file_ext, remove_docstr)
+    datasets_dict = read_dataset(
+        root_dir, archive_name, dataset_name, file_ext, remove_docstr)
 
     x_train = datasets_dict[dataset_name][0]
     y_train = datasets_dict[dataset_name][1]
@@ -833,7 +863,8 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
         root_dir + '/' + 'results/' + classifier + '/' + archive_name + itr + '/' + dataset_name + '/best_model.hdf5')
 
     # filters
-    w_k_c = model.layers[-1].get_weights()[0]  # weights for each filter k for each class c
+    # weights for each filter k for each class c
+    w_k_c = model.layers[-1].get_weights()[0]
     print("w_k_c:", w_k_c)
     print("w_k_c.shape:", w_k_c.shape)
 
@@ -842,7 +873,8 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
     # output is both the original as well as the before last layer
     new_output_layer = [model.layers[-3].output, model.layers[-1].output]
 
-    new_feed_forward = keras.backend.function(new_input_layer, new_output_layer)
+    new_feed_forward = keras.backend.function(
+        new_input_layer, new_output_layer)
 
     classes = np.unique(y_train)
 
@@ -882,7 +914,8 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                 #     continue
                 f = interp1d(range(ts.shape[1]), cas)
                 cas = f(x).astype(int)
-                plt.scatter(x=x, y=y, c=cas, cmap='jet', marker='.', s=2, vmin=0, vmax=100, linewidths=0.0)
+                plt.scatter(x=x, y=y, c=cas, cmap='jet', marker='.',
+                            s=2, vmin=0, vmax=100, linewidths=0.0)
                 if dataset_name == 'Gun_Point':
                     if c == 1:
                         plt.yticks([-1.0, 0.0, 1.0, 2.0])

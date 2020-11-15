@@ -1,3 +1,5 @@
+import tfdeterminism
+import random
 from utils.utils import generate_results_csv
 from utils.utils import create_directory
 from utils.utils import read_dataset
@@ -21,11 +23,6 @@ from sklearn.model_selection import StratifiedShuffleSplit
 
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.DEBUG)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(0)
-
-import random
-import tensorflow as tf
-import numpy as np
-import tfdeterminism
 
 
 def set_random_seed(seed: int = 1):
@@ -96,10 +93,11 @@ def data_preprocessing(datasets_dict, dataset_name, val_proportion=0.0):
 
     # if len(x_train.shape) == 2:  # if univariate
     if len(x_train_small.shape) == 2:  # if univariate
-        # add a dimension to make it multivariate with one dimension 
+        # add a dimension to make it multivariate with one dimension
         # x_train = x_train.reshape((x_train.shape[0], x_train.shape[1], 1))
         # x_test = x_test.reshape((x_test.shape[0], x_test.shape[1], 1))
-        x_train_small = x_train_small.reshape((x_train_small.shape[0], x_train_small.shape[1], 1))
+        x_train_small = x_train_small.reshape(
+            (x_train_small.shape[0], x_train_small.shape[1], 1))
         x_val = x_val.reshape((x_val.shape[0], x_val.shape[1], 1))
         x_test = x_test.reshape((x_test.shape[0], x_test.shape[1], 1))
 
@@ -112,42 +110,56 @@ def data_preprocessing(datasets_dict, dataset_name, val_proportion=0.0):
     print("input_shape:", input_shape)
     return x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes
 
+
 def fit_classifier(datasets_dict, dataset_name, verbose, val_proportion, do_pred_only, nb_epochs=None, batch_size=None, trainable_layers=None, nb_epochs_finetune=None, output_directory=None, min_lr=0.0001):
-    print("len(datasets_dict[dataset_name]):", len(datasets_dict[dataset_name]))
+    print("len(datasets_dict[dataset_name]):",
+          len(datasets_dict[dataset_name]))
     if len(datasets_dict[dataset_name]) == 8:
         train_method = 'pretrain'
         p_datasets_dict = {dataset_name: None}
         p_datasets_dict[dataset_name] = datasets_dict[dataset_name][:4]
-        x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(p_datasets_dict, dataset_name, val_proportion=0.0)
-        classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose, min_lr)
-        classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs, batch_size, train_method, nb_classes=nb_classes)
-        
+        x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(
+            p_datasets_dict, dataset_name, val_proportion=0.0)
+        classifier = create_classifier(
+            classifier_name, input_shape, nb_classes, output_directory, verbose, min_lr)
+        classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test,
+                       y_true, do_pred_only, nb_epochs, batch_size, train_method, nb_classes=nb_classes)
+
         train_method = 'finetune'
         o_datasets_dict = {dataset_name: None}
         o_datasets_dict[dataset_name] = datasets_dict[dataset_name][4:]
-        x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(o_datasets_dict, dataset_name, val_proportion=0.0)
+        x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(
+            o_datasets_dict, dataset_name, val_proportion=0.0)
         if nb_epochs_finetune:
             nb_epochs = nb_epochs_finetune
-        classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs, batch_size, train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
-        
+        classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only,
+                       nb_epochs, batch_size, train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
+
     else:
         train_method = 'normal'
-        x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(datasets_dict, dataset_name, val_proportion=val_proportion)
-        classifier = create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose, min_lr)
-        classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs, batch_size, train_method, nb_classes=nb_classes)
+        x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(
+            datasets_dict, dataset_name, val_proportion=val_proportion)
+        classifier = create_classifier(
+            classifier_name, input_shape, nb_classes, output_directory, verbose, min_lr)
+        classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test,
+                       y_true, do_pred_only, nb_epochs, batch_size, train_method, nb_classes=nb_classes)
 
 
 def classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs=None, batch_size=None, train_method='normal', trainable_layers=None, nb_classes=None):
     if nb_epochs:
         if batch_size:
-            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs=nb_epochs, batch_size=batch_size, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs=nb_epochs,
+                           batch_size=batch_size, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
         else:
-            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, nb_epochs=nb_epochs, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only,
+                           nb_epochs=nb_epochs, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
     else:
         if batch_size:
-            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, batch_size=batch_size, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only,
+                           batch_size=batch_size, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
         else:
-            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only, train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
+            classifier.fit(x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only,
+                           train_method=train_method, trainable_layers=trainable_layers, nb_classes=nb_classes)
 
 
 def create_classifier(classifier_name, input_shape, nb_classes, output_directory, verbose=True, train_method='normal', min_lr=0.0001):
@@ -183,7 +195,7 @@ def create_classifier(classifier_name, input_shape, nb_classes, output_directory
         return inception.Classifier_INCEPTION(output_directory, input_shape, nb_classes, verbose)
 
 
-############################################### main
+# main
 
 if __name__ == '__main__':
     '''
@@ -197,7 +209,7 @@ if __name__ == '__main__':
         --itr _itr_8 \
         --file_ext .arff \
         --remove_header True
-    
+
     '''
     parser = argparse.ArgumentParser(description="Data Augmentation Modules (including SWAT, EDA, Multi-Label, "
                                                  "Overlapping, ..." +
@@ -264,7 +276,7 @@ if __name__ == '__main__':
     # change this directory for your machine
     # root_dir = '/b/home/uha/hfawaz-datas/dl-tsc-temp/'
     # root_dir = '/oradiskvdb/work/side/Gait/dl-4-tsc/data'
-    
+
     archive_name = args.archive
     dataset_name = args.dataset
     classifier_name = args.classifier
@@ -288,7 +300,8 @@ if __name__ == '__main__':
                     if iter != 0:
                         trr = '_itr_' + str(iter)
 
-                    tmp_output_directory = root_dir + '/results/' + classifier_name + '/' + archive_name + trr + '/'
+                    tmp_output_directory = root_dir + '/results/' + \
+                        classifier_name + '/' + archive_name + trr + '/'
 
                     for dataset_name in utils.constants.dataset_names_for_archive[archive_name]:
                         print('\t\t\tdataset_name: ', dataset_name)
@@ -311,7 +324,8 @@ if __name__ == '__main__':
     elif args.action == 'viz_for_survey_paper':
         viz_for_survey_paper(root_dir)
     elif args.action == 'viz_cam':
-        viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, args.file_ext, args.remove_docstr)
+        viz_cam(root_dir, classifier_name, archive_name,
+                dataset_name, itr, args.file_ext, args.remove_docstr)
     elif args.action == 'generate_results_csv':
         res = generate_results_csv('results.csv', root_dir)
         print(res.to_string())
@@ -323,7 +337,7 @@ if __name__ == '__main__':
         # itr = sys.argv[4]
 
         output_directory = root_dir + '/results/' + classifier_name + '/' + archive_name + itr + '/' + \
-                        dataset_name + '/'
+            dataset_name + '/'
 
         test_dir_df_metrics = output_directory + 'df_metrics.csv'
 
@@ -334,9 +348,11 @@ if __name__ == '__main__':
                 os.remove(test_dir_df_metrics)
 
             create_directory(output_directory)
-            datasets_dict = read_dataset(root_dir, archive_name, dataset_name, args.file_ext, args.remove_docstr)
-            fit_classifier(datasets_dict, dataset_name, args.verbose, args.val_proportion, args.do_pred_only, args.nb_epochs, args.batch_size, args.trainable_layers, args.nb_epochs_finetune, output_directory, args.min_lr)
-            
+            datasets_dict = read_dataset(
+                root_dir, archive_name, dataset_name, args.file_ext, args.remove_docstr)
+            fit_classifier(datasets_dict, dataset_name, args.verbose, args.val_proportion, args.do_pred_only, args.nb_epochs,
+                           args.batch_size, args.trainable_layers, args.nb_epochs_finetune, output_directory, args.min_lr)
+
             print('DONE')
 
             # the creation of this directory means
