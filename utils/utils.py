@@ -1,7 +1,10 @@
 import time
 import ast
+import sklearn
 import tensorflow.keras as keras
 import tensorflow as tf
+# import tensorflow.keras.backend as keras_backend
+import tensorflow.compat.v1.keras.backend as keras_backend
 from scipy.io import loadmat
 from scipy.interpolate import interp1d
 from sklearn.preprocessing import LabelEncoder
@@ -22,6 +25,9 @@ from builtins import print
 import numpy as np
 import pandas as pd
 import matplotlib
+from pathlib import Path
+# import shap
+# tf.compat.v1.disable_eager_execution()
 
 matplotlib.use('agg')
 
@@ -370,6 +376,49 @@ def fit_model(model, output_directory, callbacks, verbose, x_train, y_train, x_v
         keras.backend.clear_session()
 
         return df_metrics, model, output_directory, callbacks, verbose
+
+
+##### shap
+# # explain how the input to the 37th layer of the model explains the top two classes
+# def map2layer(x, model, layer):
+#     feed_dict = dict(zip([model.layers[0].input], [x.copy()]))
+#     return keras_backend.get_session().run(model.layers[layer].input, feed_dict)
+
+
+# def fit_model(model, output_directory, callbacks, verbose, x_train, y_train, x_val, y_val, x_test, y_test, y_true, do_pred_only=False, nb_epochs=2000, batch_size=16, train_method='normal', trainable_layers=None, nb_classes=None, min_lr=0.0001):
+#     print('-'*20, 'fit_model', '-'*20)
+#     print("train_method:", train_method)
+#     nb_epochs = int(nb_epochs)
+#     batch_size = int(batch_size)
+
+#     layer_to_check = 36 # 37
+#     to_explain = x_train[[39, 41]]
+#     e = shap.GradientExplainer(
+#         (model.layers[layer_to_check].input, model.layers[-1].output),
+#         map2layer(x_train, model, layer_to_check),
+#         local_smoothing=0 # std dev of smoothing noise
+#     )
+#     shap_values, indexes = e.shap_values(map2layer(to_explain, model, layer_to_check), ranked_outputs=2)
+
+#     # get the names for the classes
+#     # index_names = np.vectorize(y_train)
+#     index_names = y_train
+
+#     # plot the explanations
+#     # print("index_names.shape[0]:", index_names.shape[0])
+#     print("len(index_names):", len(index_names))
+#     print("shap_values[0].shape:", shap_values[0].shape)
+#     print("shap_values[0].shape[0]:", shap_values[0].shape[0])
+
+#     shap.image_plot(shap_values, to_explain, index_names)
+
+#     df_metrics = None
+#     model = None 
+#     output_directory = None 
+#     callbacks = None 
+#     verbose = None
+
+#     return df_metrics, model, output_directory, callbacks, verbose
 
 
 def predict_model(output_directory, x_test, y_true, x_train, y_train, y_test, return_df_metrics=True):
@@ -829,8 +878,6 @@ def viz_for_survey_paper(root_dir, filename='results-ucr-mts.csv'):
 
 
 def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext='', remove_docstr=False):
-    import tensorflow.keras as keras
-    import sklearn
     # # classifier = 'resnet'
     # classifier = 'cnn'
     # # archive_name = 'UCRArchive_2018'
@@ -842,31 +889,56 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
         save_name = 'GunPoint'
     else:
         save_name = dataset_name
-    max_length = 2000
     # datasets_dict = read_dataset(root_dir, archive_name, dataset_name)
     datasets_dict = read_dataset(
         root_dir, archive_name, dataset_name, file_ext, remove_docstr)
 
-    x_train = datasets_dict[dataset_name][0]
-    y_train = datasets_dict[dataset_name][1]
-    y_test = datasets_dict[dataset_name][3]
+    if True:  # 'finetune'
+        x_train = datasets_dict[dataset_name][4]
+        y_train = datasets_dict[dataset_name][5]
+        x_test = datasets_dict[dataset_name][6]
+        y_test = datasets_dict[dataset_name][7]
+    else:
+        x_train = datasets_dict[dataset_name][0]
+        y_train = datasets_dict[dataset_name][1]
+        x_test = datasets_dict[dataset_name][2]
+        y_test = datasets_dict[dataset_name][3]
+
+    nb_classes = len(np.unique(np.concatenate((y_train, y_test), axis=0)))
+    print("nb_classes:", nb_classes)
 
     # TODO: change to multivariate
-    # transform to binary labels
-    enc = sklearn.preprocessing.OneHotEncoder()
-    enc.fit(np.concatenate((y_train, y_test), axis=0).reshape(-1, 1))
-    y_train_binary = enc.transform(y_train.reshape(-1, 1)).toarray()
+    # # transform to binary labels
+    # enc = sklearn.preprocessing.OneHotEncoder()
+    # enc.fit(np.concatenate((y_train, y_test), axis=0).reshape(-1, 1))
+    # y_train_binary = enc.transform(y_train.reshape(-1, 1)).toarray()
 
-    x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], 1)
+    print("x_train.shape:", x_train.shape)
+    print("y_train before:", y_train)
+    # enc = sklearn.preprocessing.OneHotEncoder(categories='auto')
+    # enc.fit(np.concatenate((y_train, y_test), axis=0).reshape(-1, 1))
+    # y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
+    # y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
+    print("y_train after:", y_train)
+    print("y_train[20:] after:", y_train[20:])
+    print("y_train.shape after:", y_train.shape)
+    # print("y_test after:", y_test)
 
+    # x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], 1)
+
+    pre_model_name = 'finetune_'
+    # pre_model_name = ''
     model = keras.models.load_model(
-        root_dir + '/' + 'results/' + classifier + '/' + archive_name + itr + '/' + dataset_name + '/best_model.hdf5')
+        root_dir + '/' + 'results/' + classifier + '/' + archive_name + itr + '/' + dataset_name + '/' + pre_model_name + 'best_model.hdf5')
 
     # filters
     # weights for each filter k for each class c
     w_k_c = model.layers[-1].get_weights()[0]
-    print("w_k_c:", w_k_c)
-    print("w_k_c.shape:", w_k_c.shape)
+    print("w_k_c.shape:", w_k_c.shape)  # (128, 100) 128 filter 100 class
+    # w_k_c = model.layers[-1].get_weights()
+    # print("w_k_c:", w_k_c)
+    # print("len(w_k_c):", len(w_k_c))
+    # print("w_k_c[0].shape:", w_k_c[0].shape)
 
     # the same input
     new_input_layer = model.inputs
@@ -875,55 +947,131 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
 
     new_feed_forward = keras.backend.function(
         new_input_layer, new_output_layer)
+    print("new_input_layer:", new_input_layer)
 
     classes = np.unique(y_train)
+    print("classes:", classes)
+    count_all = 0
 
+    # all classes
+    plt.figure()
     for c in classes:
+        if c > 110:
+            break
         print("c:", c)
-        plt.figure()
+        # per class
+        # plt.figure()
         count = 0
+        print("np.where(y_train == c):", np.where(y_train == c))
         c_x_train = x_train[np.where(y_train == c)]
+        print("c_x_train.shape:", c_x_train.shape)
         for ts in c_x_train:
-            print("ts:", ts)
-            ts = ts.reshape(1, -1, 1)
-            print("ts:", ts)
+            print("before ts:", ts)
+            print("before ts.shape:", ts.shape)
+            # ts = ts.reshape(1, -1, 1)
+            # ts = ts.reshape(1, 10, -1)
+            # TODO: this is hotfix
+            ts = ts.reshape(1, 10, -1)
+            print("after ts:", ts)
+            print("after ts.shape:", ts.shape)
             [conv_out, predicted] = new_feed_forward([ts])
             print("conv_out:", conv_out)
             print("predicted:", predicted)
-            pred_label = np.argmax(predicted)
-            orig_label = np.argmax(enc.transform([[c]]))
+            pred_label = np.argmax(predicted[0])
+            print("predicted[0][pred_label]:", predicted[0][pred_label])
+            # pred_label += 101  # TODO: hotfix, should be fixed with one-hot encoder
             print("pred_label:", pred_label)
+            # orig_label = np.argmax(enc.transform([[c]]))
+            orig_label = int(c)
+            orig_label -= 101 # TODO: hotfix, should be fixed with one-hot encoder
             print("orig_label:", orig_label)
+            # assert 0
             if pred_label == orig_label:
+                print("conv_out.shape:", conv_out.shape)
                 cas = np.zeros(dtype=np.float, shape=(conv_out.shape[1]))
+                # cas = np.zeros(dtype=np.float, shape=(conv_out.shape[2]))
                 for k, w in enumerate(w_k_c[:, orig_label]):
+                    # print("w * conv_out[0, :, k]:", w * conv_out[0, :, k])
                     cas += w * conv_out[0, :, k]
-
+                    # cas += w * conv_out[0, k, :]  # k filter
+                print("before cas:", cas)
                 minimum = np.min(cas)
 
                 cas = cas - minimum
 
                 cas = cas / max(cas)
                 cas = cas * 100
+                print("after cas:", cas)
 
-                x = np.linspace(0, ts.shape[1] - 1, max_length, endpoint=True)
+                # shape_ind = 1
+                max_length = 2000
+
+                shape_ind = 2
+                # # max_length = 2020
+                # max_length = 2000
+
+                print("ts.shape:", ts.shape)
+                print("ts.shape[1] - 1:", ts.shape[shape_ind] - 1)  # 9 or 100
+                x = np.linspace(0, ts.shape[shape_ind] - 1, max_length, endpoint=True)
                 # linear interpolation to smooth
-                f = interp1d(range(ts.shape[1]), ts[0, :, 0])
+                print("x:", x)
+                print("x.shape:", x.shape)
+                print("ts.shape[shape_ind]:", ts.shape[shape_ind])
+
+                # print("ts[0, :, 0]:", ts[0, :, 0])
+                # print("len(ts[0, :, 0]):", len(ts[0, :, 0]))
+                # print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
+                # print("ts[0, :, 0].shape:", ts[0, :, 0].shape)  # ts[0, :, 0].shape: (10,)
+                # f = interp1d(range(ts.shape[shape_ind]), ts[0, :, 0])
+
+                frame = 3
+                print("ts[0, frame, :]:", ts[0, frame, :])
+                print("len(ts[0, frame, :]):", len(ts[0, frame, :]))
+                # print("len(ts[0, frame, :][:100]):", len(ts[0, frame, :][:100]))
+                # print("len(ts[0, frame, :][1:]):", len(ts[0, frame, :][1:]))
+                print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
+                print("ts[0, frame, :].shape:", ts[0, frame, :].shape)  # ts[0, frame, :].shape: (101,)
+                # f = interp1d(range(ts.shape[shape_ind]-1), ts[0, frame, :][:100])
+                # f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :][1:])
+                f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :])
+
                 y = f(x)
+                print("y:", y)
+                print("y.shape:", y.shape)
+                print("range(ts.shape[1]):", range(ts.shape[1]))
+                print("cas.shape:", cas.shape)
                 # if (y < -2.2).any():
                 #     continue
-                f = interp1d(range(ts.shape[1]), cas)
+                # f = interp1d(range(ts.shape[shape_ind]), cas)
+                f = interp1d(range(ts.shape[1]), cas, fill_value="extrapolate")  # 
+
                 cas = f(x).astype(int)
                 plt.scatter(x=x, y=y, c=cas, cmap='jet', marker='.',
                             s=2, vmin=0, vmax=100, linewidths=0.0)
-                if dataset_name == 'Gun_Point':
-                    if c == 1:
-                        plt.yticks([-1.0, 0.0, 1.0, 2.0])
-                    else:
-                        plt.yticks([-2, -1.0, 0.0, 1.0, 2.0])
+                # if dataset_name == 'Gun_Point':
+                # if c == 1:
+                #     plt.yticks([-1.0, 0.0, 1.0, 2.0])
+                # else:
+                #     plt.yticks([-2, -1.0, 0.0, 1.0, 2.0])
                 count += 1
 
-        cbar = plt.colorbar()
-        # cbar.ax.set_yticklabels([100,75,50,25,0])
-        plt.savefig(root_dir + '/temp/' + classifier + '-cam-' + save_name + '-class-' + str(int(c)) + '.png',
-                    bbox_inches='tight', dpi=1080)
+        print("count:", count)
+        count_all += count
+
+        # # save pic per class
+        # cbar = plt.colorbar()
+        # # cbar.ax.set_yticklabels([100,75,50,25,0])
+        # pic_path = root_dir + '/temp/' + classifier + '-cam-' + save_name + '-class-' + str(int(c)) + '.png'
+        # Path(root_dir + '/temp/').mkdir(parents=True, exist_ok=True)
+        # plt.savefig(pic_path,
+        #             bbox_inches='tight', dpi=1080)
+
+    # save pic all together
+    cbar = plt.colorbar()
+    # cbar.ax.set_yticklabels([100,75,50,25,0])
+    pic_path = root_dir + '/temp/' + classifier + '-cam-' + save_name + '-class-' + str(int(c)) + '.png'
+    Path(root_dir + '/temp/').mkdir(parents=True, exist_ok=True)
+    plt.savefig(pic_path,
+                bbox_inches='tight', dpi=1080)
+
+    print("count_all:", count_all)
