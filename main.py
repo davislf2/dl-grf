@@ -31,7 +31,7 @@ def set_random_seed(seed: int = 1):
     random.seed(seed)
 
 
-def data_preprocessing(datasets_dict, dataset_name, val_proportion=0.0):
+def data_preprocessing(datasets_dict, dataset_name, val_proportion=0.0, swap_repr=False):
     x_train = datasets_dict[dataset_name][0]
     y_train = datasets_dict[dataset_name][1]
     x_test = datasets_dict[dataset_name][2]
@@ -101,6 +101,12 @@ def data_preprocessing(datasets_dict, dataset_name, val_proportion=0.0):
         x_val = x_val.reshape((x_val.shape[0], x_val.shape[1], 1))
         x_test = x_test.reshape((x_test.shape[0], x_test.shape[1], 1))
 
+    if swap_repr:
+        x_train_small = swap_axis_1_and_2(x_train_small)
+        if x_val is not None:
+            x_val = swap_axis_1_and_2(x_val)
+        x_test = swap_axis_1_and_2(x_test)
+
     print("x_train_small.shape:", x_train_small.shape)
     if x_val is not None:
         print("x_val.shape:", x_val.shape)
@@ -111,7 +117,13 @@ def data_preprocessing(datasets_dict, dataset_name, val_proportion=0.0):
     return x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes
 
 
-def fit_classifier(datasets_dict, dataset_name, verbose, val_proportion, do_pred_only, nb_epochs=None, batch_size=None, trainable_layers=None, nb_epochs_finetune=None, output_directory=None, min_lr=0.0001):
+def swap_axis_1_and_2(data):
+    return np.transpose(data, (0, 2, 1))
+
+
+def fit_classifier(datasets_dict, dataset_name, verbose, val_proportion, do_pred_only, 
+                   nb_epochs=None, batch_size=None, trainable_layers=None, nb_epochs_finetune=None, 
+                   output_directory=None, min_lr=0.0001, swap_repr=False):
     print("len(datasets_dict[dataset_name]):",
           len(datasets_dict[dataset_name]))
     if len(datasets_dict[dataset_name]) == 8:
@@ -119,7 +131,7 @@ def fit_classifier(datasets_dict, dataset_name, verbose, val_proportion, do_pred
         p_datasets_dict = {dataset_name: None}
         p_datasets_dict[dataset_name] = datasets_dict[dataset_name][:4]
         x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(
-            p_datasets_dict, dataset_name, val_proportion=0.0)
+            p_datasets_dict, dataset_name, val_proportion=0.0, swap_repr=swap_repr)
         classifier = create_classifier(
             classifier_name, input_shape, nb_classes, output_directory, verbose, min_lr)
         classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test,
@@ -129,7 +141,7 @@ def fit_classifier(datasets_dict, dataset_name, verbose, val_proportion, do_pred
         o_datasets_dict = {dataset_name: None}
         o_datasets_dict[dataset_name] = datasets_dict[dataset_name][4:]
         x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, input_shape, nb_classes = data_preprocessing(
-            o_datasets_dict, dataset_name, val_proportion=0.0)
+            o_datasets_dict, dataset_name, val_proportion=0.0, swap_repr=swap_repr)
         if nb_epochs_finetune:
             nb_epochs = nb_epochs_finetune
         classifier_fit(classifier, x_train_small, y_train_small, x_val, y_val, x_test, y_test, y_true, do_pred_only,
@@ -266,6 +278,11 @@ if __name__ == '__main__':
     parser.add_argument('--min_lr',
                         help='minimum learning rate',
                         default=0.0001)
+    parser.add_argument('--swap_repr',
+                        help='swap 1 & 2 dimensions',
+                        default=False)
+    parser.add_argument('--viz_frame',
+                        help='which frame to visualize')
 
     # parser.add_argument('--train_method',
     #                     help='3 approaches: pretrain, pretrain_finetune, finetune',
@@ -325,7 +342,8 @@ if __name__ == '__main__':
         viz_for_survey_paper(root_dir)
     elif args.action == 'viz_cam':
         viz_cam(root_dir, classifier_name, archive_name,
-                dataset_name, itr, args.file_ext, args.remove_docstr)
+                dataset_name, itr, args.file_ext, args.remove_docstr, 
+                args.swap_repr, args.viz_frame)
     elif args.action == 'generate_results_csv':
         res = generate_results_csv('results.csv', root_dir)
         print(res.to_string())
@@ -351,7 +369,8 @@ if __name__ == '__main__':
             datasets_dict = read_dataset(
                 root_dir, archive_name, dataset_name, args.file_ext, args.remove_docstr)
             fit_classifier(datasets_dict, dataset_name, args.verbose, args.val_proportion, args.do_pred_only, args.nb_epochs,
-                           args.batch_size, args.trainable_layers, args.nb_epochs_finetune, output_directory, args.min_lr)
+                           args.batch_size, args.trainable_layers, args.nb_epochs_finetune, output_directory, args.min_lr,
+                           args.swap_repr)
 
             print('DONE')
 

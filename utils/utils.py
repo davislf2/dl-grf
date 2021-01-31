@@ -877,7 +877,12 @@ def viz_for_survey_paper(root_dir, filename='results-ucr-mts.csv'):
     viz_plot(root_dir, df)
 
 
-def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext='', remove_docstr=False):
+def swap_axis_1_and_2(data):
+    return np.transpose(data, (0, 2, 1))
+
+
+def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext='', 
+            remove_docstr=False, swap_repr=False, viz_frame=0):
     # # classifier = 'resnet'
     # classifier = 'cnn'
     # # archive_name = 'UCRArchive_2018'
@@ -903,6 +908,10 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
         y_train = datasets_dict[dataset_name][1]
         x_test = datasets_dict[dataset_name][2]
         y_test = datasets_dict[dataset_name][3]
+
+    if swap_repr:
+        x_train = swap_axis_1_and_2(x_train)
+        x_test = swap_axis_1_and_2(x_test)
 
     nb_classes = len(np.unique(np.concatenate((y_train, y_test), axis=0)))
     print("nb_classes:", nb_classes)
@@ -971,7 +980,11 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
             # ts = ts.reshape(1, -1, 1)
             # ts = ts.reshape(1, 10, -1)
             # TODO: this is hotfix
-            ts = ts.reshape(1, 10, -1)
+            if not swap_repr:
+                ts = ts.reshape(1, 10, -1)
+            else:
+                ts = ts.reshape(1, 101, -1)
+
             print("after ts:", ts)
             print("after ts.shape:", ts.shape)
             [conv_out, predicted] = new_feed_forward([ts])
@@ -1006,7 +1019,10 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                 # shape_ind = 1
                 max_length = 2000
 
-                shape_ind = 2
+                if not swap_repr:
+                    shape_ind = 2
+                else:
+                    shape_ind = 1
                 # # max_length = 2020
                 # max_length = 2000
 
@@ -1024,16 +1040,28 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                 # print("ts[0, :, 0].shape:", ts[0, :, 0].shape)  # ts[0, :, 0].shape: (10,)
                 # f = interp1d(range(ts.shape[shape_ind]), ts[0, :, 0])
 
-                frame = 3
-                print("ts[0, frame, :]:", ts[0, frame, :])
-                print("len(ts[0, frame, :]):", len(ts[0, frame, :]))
-                # print("len(ts[0, frame, :][:100]):", len(ts[0, frame, :][:100]))
-                # print("len(ts[0, frame, :][1:]):", len(ts[0, frame, :][1:]))
-                print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
-                print("ts[0, frame, :].shape:", ts[0, frame, :].shape)  # ts[0, frame, :].shape: (101,)
-                # f = interp1d(range(ts.shape[shape_ind]-1), ts[0, frame, :][:100])
-                # f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :][1:])
-                f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :])
+                if not swap_repr:
+                    frame = viz_frame
+                    print("ts[0, frame, :]:", ts[0, frame, :])
+                    print("len(ts[0, frame, :]):", len(ts[0, frame, :]))
+                    # print("len(ts[0, frame, :][:100]):", len(ts[0, frame, :][:100]))
+                    # print("len(ts[0, frame, :][1:]):", len(ts[0, frame, :][1:]))
+                    print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
+                    print("ts[0, frame, :].shape:", ts[0, frame, :].shape)  # ts[0, frame, :].shape: (101,)
+                    # f = interp1d(range(ts.shape[shape_ind]-1), ts[0, frame, :][:100])
+                    # f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :][1:])
+                    f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :])
+                else:
+                    frame = 3
+                    print("ts[0, :, frame]:", ts[0, :, frame])
+                    print("len(ts[0, frame, :]):", len(ts[0, :, frame]))
+                    # print("len(ts[0, :, frame][:100]):", len(ts[0, :, frame][:100]))
+                    # print("len(ts[0, :, frame][1:]):", len(ts[0, :, frame][1:]))
+                    print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
+                    print("ts[0, :, frame].shape:", ts[0, :, frame].shape)  # ts[0, frame, :].shape: (101,)
+                    # f = interp1d(range(ts.shape[shape_ind]-1), ts[0, frame, :][:100])
+                    # f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :][1:])
+                    f = interp1d(range(ts.shape[shape_ind]), ts[0, :, frame])
 
                 y = f(x)
                 print("y:", y)
