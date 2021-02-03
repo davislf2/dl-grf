@@ -25,7 +25,9 @@ from builtins import print
 import numpy as np
 import pandas as pd
 import matplotlib
+from matplotlib.lines import Line2D
 from pathlib import Path
+import itertools
 # import shap
 # tf.compat.v1.disable_eager_execution()
 
@@ -33,6 +35,8 @@ matplotlib.use('agg')
 
 matplotlib.rcParams['font.family'] = 'sans-serif'
 matplotlib.rcParams['font.sans-serif'] = 'Arial'
+FRAME_DEFINITION = ['L_X', 'L_Y', 'L_Z', 'L_F_X', 'L_F_Y',
+                    'R_X', 'R_Y', 'R_Z', 'R_F_X', 'R_F_Y',]
 
 
 def readucr(filename, remove_docstr=False):
@@ -881,8 +885,47 @@ def swap_axis_1_and_2(data):
     return np.transpose(data, (0, 2, 1))
 
 
+def get_linestyle_iter():
+    linestyles = [
+        ('solid', 'solid'),      # Same as (0, ()) or '-'
+        ('dotted', 'dotted'),    # Same as (0, (1, 1)) or '.'
+        ('dashed', 'dashed'),    # Same as '--'
+        ('dashdot', 'dashdot'),  # Same as '-.'
+        ('loosely dotted',        (0, (1, 10))),
+        ('dotted',                (0, (1, 1))),
+        ('densely dotted',        (0, (1, 1))),
+
+        ('loosely dashed',        (0, (5, 10))),
+        ('dashed',                (0, (5, 5))),
+        ('densely dashed',        (0, (5, 1))),
+
+        ('loosely dashdotted',    (0, (3, 10, 1, 10))),
+        ('dashdotted',            (0, (3, 5, 1, 5))),
+        ('densely dashdotted',    (0, (3, 1, 1, 1))),
+
+        ('dashdotdotted',         (0, (3, 5, 1, 5, 1, 5))),
+        ('loosely dashdotdotted', (0, (3, 10, 1, 10, 1, 10))),
+        ('densely dashdotdotted', (0, (3, 1, 1, 1, 1, 1)))]
+
+    linestyle_iter = []
+    for i, (name, linestyle) in enumerate(linestyles):
+        linestyle_iter.append(linestyle)
+    # print("tuple(linestyle_iter):", tuple(linestyle_iter))
+    return itertools.cycle(tuple(linestyle_iter))
+
+
+def get_marker_iter():
+    # marker_iter = []
+    # for marker_abbr, marker_name in Line2D.markers.items():
+    #     if marker_abbr and marker_abbr not in ['None', ',']:
+    #         marker_iter.append(marker_abbr)
+    # marker_iter = ["o", "v", "1", "s", "p", "P", "*", "+", "x", "X", "D", "|", "_"]
+    marker_iter = ["o", "v",      "s", "p", "P", "*",           "X", "D"          ]
+    return itertools.cycle(tuple(marker_iter))
+
+
 def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext='', 
-            remove_docstr=False, swap_repr=False, viz_frame=0):
+            remove_docstr=False, swap_repr=False, viz_frame=None):
     # # classifier = 'resnet'
     # classifier = 'cnn'
     # # archive_name = 'UCRArchive_2018'
@@ -962,11 +1005,20 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
     print("classes:", classes)
     count_all = 0
 
+    num_frames = x_train.shape[2]
+    time_len = x_train.shape[1]
+    # max_length = 2000
+    max_length = time_len
+    print("num_frames:", num_frames)
+    linestyle_iter = get_linestyle_iter()
+    marker_iter = get_marker_iter()
+
     # all classes
     plt.figure()
-    for c in classes:
-        if c > 110:
-            break
+    for i, c in enumerate(classes):
+        ### TODO: this only select 10 classes
+        # if i >= 10:
+        #     break
         print("c:", c)
         # per class
         # plt.figure()
@@ -974,132 +1026,165 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
         print("np.where(y_train == c):", np.where(y_train == c))
         c_x_train = x_train[np.where(y_train == c)]
         print("c_x_train.shape:", c_x_train.shape)
-        for ts in c_x_train:
-            print("before ts:", ts)
-            print("before ts.shape:", ts.shape)
-            # ts = ts.reshape(1, -1, 1)
-            # ts = ts.reshape(1, 10, -1)
-            # TODO: this is hotfix
-            if not swap_repr:
-                ts = ts.reshape(1, 10, -1)
-            else:
-                ts = ts.reshape(1, 101, -1)
-
-            print("after ts:", ts)
-            print("after ts.shape:", ts.shape)
-            [conv_out, predicted] = new_feed_forward([ts])
-            print("conv_out:", conv_out)
-            print("predicted:", predicted)
-            pred_label = np.argmax(predicted[0])
-            print("predicted[0][pred_label]:", predicted[0][pred_label])
-            # pred_label += 101  # TODO: hotfix, should be fixed with one-hot encoder
-            print("pred_label:", pred_label)
-            # orig_label = np.argmax(enc.transform([[c]]))
-            orig_label = int(c)
-            orig_label -= 101 # TODO: hotfix, should be fixed with one-hot encoder
-            print("orig_label:", orig_label)
-            # assert 0
-            if pred_label == orig_label:
-                print("conv_out.shape:", conv_out.shape)
-                cas = np.zeros(dtype=np.float, shape=(conv_out.shape[1]))
-                # cas = np.zeros(dtype=np.float, shape=(conv_out.shape[2]))
-                for k, w in enumerate(w_k_c[:, orig_label]):
-                    # print("w * conv_out[0, :, k]:", w * conv_out[0, :, k])
-                    cas += w * conv_out[0, :, k]
-                    # cas += w * conv_out[0, k, :]  # k filter
-                print("before cas:", cas)
-                minimum = np.min(cas)
-
-                cas = cas - minimum
-
-                cas = cas / max(cas)
-                cas = cas * 100
-                print("after cas:", cas)
-
-                # shape_ind = 1
-                max_length = 2000
-
+        for frame in range(num_frames):
+            # if viz_frame is assigned, then skip other frames and print all classes together
+            if viz_frame is not None and viz_frame != frame:
+                # print("viz_frame:", viz_frame)
+                # print("frame:", frame)
+                # print("viz_frame != frame:", viz_frame != frame)
+                continue
+            for ts in c_x_train:
+                print("before ts:", ts)
+                print("before ts.shape:", ts.shape)
+                # ts = ts.reshape(1, -1, 1)
+                # ts = ts.reshape(1, 10, -1)
+                # TODO: this is hotfix
                 if not swap_repr:
-                    shape_ind = 2
+                    ts = ts.reshape(1, 10, -1)
                 else:
-                    shape_ind = 1
-                # # max_length = 2020
-                # max_length = 2000
+                    ts = ts.reshape(1, 101, -1)
 
-                print("ts.shape:", ts.shape)
-                print("ts.shape[1] - 1:", ts.shape[shape_ind] - 1)  # 9 or 100
-                x = np.linspace(0, ts.shape[shape_ind] - 1, max_length, endpoint=True)
-                # linear interpolation to smooth
-                print("x:", x)
-                print("x.shape:", x.shape)
-                print("ts.shape[shape_ind]:", ts.shape[shape_ind])
+                print("after ts:", ts)
+                print("after ts.shape:", ts.shape)
+                [conv_out, predicted] = new_feed_forward([ts])
+                print("conv_out:", conv_out)
+                print("predicted:", predicted)
+                pred_label = np.argmax(predicted[0])
+                pred_label_map = int(classes[pred_label])
+                print("predicted[0][pred_label]:", predicted[0][pred_label])
+                # pred_label += 101  # TODO: hotfix, should be fixed with one-hot encoder
+                print("pred_label:", pred_label)
+                print("pred_label_map:", pred_label_map)
+                # orig_label = np.argmax(enc.transform([[c]]))
+                orig_label = int(c)
+                orig_label_map = orig_label
+                # orig_label -= 101 # TODO: hotfix, should be fixed with one-hot encoder
+                print("orig_label:", orig_label)
+                print("orig_label_map:", orig_label_map)
+                # assert 0
+                # if pred_label == orig_label:
+                if pred_label_map == orig_label_map:
+                    print("conv_out.shape:", conv_out.shape)
+                    cas = np.zeros(dtype=np.float, shape=(conv_out.shape[1]))
+                    # cas = np.zeros(dtype=np.float, shape=(conv_out.shape[2]))
+                    # for k, w in enumerate(w_k_c[:, orig_label]):
+                    for k, w in enumerate(w_k_c[:, pred_label]):
+                        # print("w * conv_out[0, :, k]:", w * conv_out[0, :, k])
+                        cas += w * conv_out[0, :, k]
+                        # cas += w * conv_out[0, k, :]  # k filter
+                    # print("before cas:", cas)
+                    minimum = np.min(cas)
 
-                # print("ts[0, :, 0]:", ts[0, :, 0])
-                # print("len(ts[0, :, 0]):", len(ts[0, :, 0]))
-                # print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
-                # print("ts[0, :, 0].shape:", ts[0, :, 0].shape)  # ts[0, :, 0].shape: (10,)
-                # f = interp1d(range(ts.shape[shape_ind]), ts[0, :, 0])
+                    cas = cas - minimum
 
-                if not swap_repr:
-                    frame = viz_frame
-                    print("ts[0, frame, :]:", ts[0, frame, :])
-                    print("len(ts[0, frame, :]):", len(ts[0, frame, :]))
-                    # print("len(ts[0, frame, :][:100]):", len(ts[0, frame, :][:100]))
-                    # print("len(ts[0, frame, :][1:]):", len(ts[0, frame, :][1:]))
-                    print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
-                    print("ts[0, frame, :].shape:", ts[0, frame, :].shape)  # ts[0, frame, :].shape: (101,)
-                    # f = interp1d(range(ts.shape[shape_ind]-1), ts[0, frame, :][:100])
-                    # f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :][1:])
-                    f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :])
-                else:
-                    frame = 3
-                    print("ts[0, :, frame]:", ts[0, :, frame])
-                    print("len(ts[0, frame, :]):", len(ts[0, :, frame]))
-                    # print("len(ts[0, :, frame][:100]):", len(ts[0, :, frame][:100]))
-                    # print("len(ts[0, :, frame][1:]):", len(ts[0, :, frame][1:]))
-                    print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
-                    print("ts[0, :, frame].shape:", ts[0, :, frame].shape)  # ts[0, frame, :].shape: (101,)
-                    # f = interp1d(range(ts.shape[shape_ind]-1), ts[0, frame, :][:100])
-                    # f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :][1:])
-                    f = interp1d(range(ts.shape[shape_ind]), ts[0, :, frame])
+                    cas = cas / max(cas)
+                    cas = cas * 100
+                    # print("after cas:", cas)
 
-                y = f(x)
-                print("y:", y)
-                print("y.shape:", y.shape)
-                print("range(ts.shape[1]):", range(ts.shape[1]))
-                print("cas.shape:", cas.shape)
-                # if (y < -2.2).any():
-                #     continue
-                # f = interp1d(range(ts.shape[shape_ind]), cas)
-                f = interp1d(range(ts.shape[1]), cas, fill_value="extrapolate")  # 
+                    # shape_ind = 1
+                    # max_length = 2000
 
-                cas = f(x).astype(int)
-                plt.scatter(x=x, y=y, c=cas, cmap='jet', marker='.',
-                            s=2, vmin=0, vmax=100, linewidths=0.0)
-                # if dataset_name == 'Gun_Point':
-                # if c == 1:
-                #     plt.yticks([-1.0, 0.0, 1.0, 2.0])
-                # else:
-                #     plt.yticks([-2, -1.0, 0.0, 1.0, 2.0])
-                count += 1
+                    if not swap_repr:
+                        shape_ind = 2
+                    else:
+                        shape_ind = 1
+                    # # max_length = 2020
+                    # max_length = 2000
+
+                    print("ts.shape:", ts.shape)
+                    print("ts.shape[1] - 1:", ts.shape[shape_ind] - 1)  # 9 or 100
+                    x = np.linspace(0, ts.shape[shape_ind] - 1, max_length, endpoint=True)
+                    # linear interpolation to smooth
+                    print("x:", x)
+                    print("x.shape:", x.shape)
+                    print("ts.shape[shape_ind]:", ts.shape[shape_ind])
+
+                    # print("ts[0, :, 0]:", ts[0, :, 0])
+                    # print("len(ts[0, :, 0]):", len(ts[0, :, 0]))
+                    # print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
+                    # print("ts[0, :, 0].shape:", ts[0, :, 0].shape)  # ts[0, :, 0].shape: (10,)
+                    # f = interp1d(range(ts.shape[shape_ind]), ts[0, :, 0])
+
+                    if not swap_repr:
+                        if viz_frame:
+                            frame = viz_frame
+                        print("ts[0, frame, :]:", ts[0, frame, :])
+                        print("len(ts[0, frame, :]):", len(ts[0, frame, :]))
+                        # print("len(ts[0, frame, :][:100]):", len(ts[0, frame, :][:100]))
+                        # print("len(ts[0, frame, :][1:]):", len(ts[0, frame, :][1:]))
+                        print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
+                        print("ts[0, frame, :].shape:", ts[0, frame, :].shape)  # ts[0, frame, :].shape: (101,)
+                        # f = interp1d(range(ts.shape[shape_ind]-1), ts[0, frame, :][:100])
+                        # f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :][1:])
+                        f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :])
+                    else:
+                        if viz_frame:
+                            frame = viz_frame # 3
+                        print("ts[0, :, frame]:", ts[0, :, frame])
+                        print("len(ts[0, :, frame]):", len(ts[0, :, frame]))
+                        # print("len(ts[0, :, frame][:100]):", len(ts[0, :, frame][:100]))
+                        # print("len(ts[0, :, frame][1:]):", len(ts[0, :, frame][1:]))
+                        print("range(ts.shape[shape_ind]):", range(ts.shape[shape_ind]))
+                        print("ts[0, :, frame].shape:", ts[0, :, frame].shape)  # ts[0, frame, :].shape: (101,)
+                        # f = interp1d(range(ts.shape[shape_ind]-1), ts[0, frame, :][:100])
+                        # f = interp1d(range(ts.shape[shape_ind]), ts[0, frame, :][1:])
+                        f = interp1d(range(ts.shape[shape_ind]), ts[0, :, frame])
+
+                    y = f(x)
+                    print("y:", y)
+                    print("y.shape:", y.shape)
+                    print("range(ts.shape[1]):", range(ts.shape[1]))
+                    print("cas.shape:", cas.shape)
+                    # if (y < -2.2).any():
+                    #     continue
+                    # f = interp1d(range(ts.shape[shape_ind]), cas)
+                    f = interp1d(range(ts.shape[1]), cas, fill_value="extrapolate")  # 
+
+                    cas = f(x).astype(int)
+                    if viz_frame:
+                        plt.scatter(x=x, y=y, c=cas, cmap='jet', marker=next(marker_iter),  # marker='.'
+                                    s=8, vmin=0, vmax=100, linewidths=0.0, 
+                                    label=f'class {int(c)}', linestyle=next(linestyle_iter))
+                    else:
+                        plt.scatter(x=x, y=y, c=cas, cmap='jet', marker=next(marker_iter),
+                                    s=8, vmin=0, vmax=100, linewidths=0.0, 
+                                    label=f'frame {FRAME_DEFINITION[frame]}', linestyle=next(linestyle_iter))
+                    # if dataset_name == 'Gun_Point':
+                    # if c == 1:
+                    #     plt.yticks([-1.0, 0.0, 1.0, 2.0])
+                    # else:
+                    #     plt.yticks([-2, -1.0, 0.0, 1.0, 2.0])
+                    count += 1
 
         print("count:", count)
         count_all += count
 
-        # # save pic per class
-        # cbar = plt.colorbar()
-        # # cbar.ax.set_yticklabels([100,75,50,25,0])
-        # pic_path = root_dir + '/temp/' + classifier + '-cam-' + save_name + '-class-' + str(int(c)) + '.png'
-        # Path(root_dir + '/temp/').mkdir(parents=True, exist_ok=True)
-        # plt.savefig(pic_path,
-        #             bbox_inches='tight', dpi=1080)
+        if not viz_frame:
+            plt.legend()
+            # save pic per class
+            cbar = plt.colorbar()
+            # cbar.ax.set_yticklabels([100,75,50,25,0])
+            plt.title(f'class {int(c)}')
+            plt.ylabel('value', labelpad=6)
+            plt.xlabel('time', labelpad=6)
+            pic_path = root_dir + '/temp/' + classifier + '-cam-' + save_name + '-class-' + str(int(c)) + '.png'
+            Path(root_dir + '/temp/').mkdir(parents=True, exist_ok=True)
+            plt.savefig(pic_path,
+                        bbox_inches='tight', dpi=1080)
+            plt.clf()
 
-    # save pic all together
-    cbar = plt.colorbar()
-    # cbar.ax.set_yticklabels([100,75,50,25,0])
-    pic_path = root_dir + '/temp/' + classifier + '-cam-' + save_name + '-class-' + str(int(c)) + '.png'
-    Path(root_dir + '/temp/').mkdir(parents=True, exist_ok=True)
-    plt.savefig(pic_path,
-                bbox_inches='tight', dpi=1080)
+    if viz_frame:
+        plt.legend()
+        # save pic all together
+        cbar = plt.colorbar()
+        # cbar.ax.set_yticklabels([100,75,50,25,0])
+        plt.title(f'frame {FRAME_DEFINITION[frame]}')
+        plt.ylabel('value', labelpad=6)
+        plt.xlabel('time', labelpad=6)
+        pic_path = root_dir + '/temp/' + classifier + '-cam-' + save_name + '-viz-frame-' + str(viz_frame) + '.png'
+        Path(root_dir + '/temp/').mkdir(parents=True, exist_ok=True)
+        plt.savefig(pic_path,
+                    bbox_inches='tight', dpi=1080)
+        plt.clf()
 
     print("count_all:", count_all)
