@@ -35,8 +35,9 @@ matplotlib.use('agg')
 
 matplotlib.rcParams['font.family'] = 'sans-serif'
 matplotlib.rcParams['font.sans-serif'] = 'Arial'
-FRAME_DEFINITION = ['L_X', 'L_Y', 'L_Z', 'L_F_X', 'L_F_Y',
-                    'R_X', 'R_Y', 'R_Z', 'R_F_X', 'R_F_Y',]
+FRAME_DEFINITION = ["C_AP_L", "C_AP_R", "C_ML_L", "C_ML_R",
+                    "F_AP_L", "F_AP_R", "F_ML_L", "F_ML_R",
+                    "F_V_L", "F_V_R"]
 
 
 def readucr(filename, remove_docstr=False):
@@ -920,7 +921,7 @@ def get_marker_iter():
     #     if marker_abbr and marker_abbr not in ['None', ',']:
     #         marker_iter.append(marker_abbr)
     # marker_iter = ["o", "v", "1", "s", "p", "P", "*", "+", "x", "X", "D", "|", "_"]
-    marker_iter = ["o", "v",      "s", "p", "P", "*",           "X", "D"          ]
+    marker_iter = ["o", "v",      "s", "p", "P", "*",           "X", "D"          , "^", "d"]
     return itertools.cycle(tuple(marker_iter))
 
 
@@ -1007,6 +1008,8 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
 
     num_frames = x_train.shape[2]
     time_len = x_train.shape[1]
+    if viz_frame is not None:
+        viz_frame = int(viz_frame)
     # max_length = 2000
     max_length = time_len
     print("num_frames:", num_frames)

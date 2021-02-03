@@ -343,7 +343,7 @@ if __name__ == '__main__':
     elif args.action == 'viz_cam':
         viz_cam(root_dir, classifier_name, archive_name,
                 dataset_name, itr, args.file_ext, args.remove_docstr, 
-                args.swap_repr, int(args.viz_frame))
+                args.swap_repr, args.viz_frame)
     elif args.action == 'generate_results_csv':
         res = generate_results_csv('results.csv', root_dir)
         print(res.to_string())
