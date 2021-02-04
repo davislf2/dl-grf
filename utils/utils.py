@@ -972,8 +972,8 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
     # enc.fit(np.concatenate((y_train, y_test), axis=0).reshape(-1, 1))
     # y_train = enc.transform(y_train.reshape(-1, 1)).toarray()
     # y_test = enc.transform(y_test.reshape(-1, 1)).toarray()
-    print("y_train after:", y_train)
-    print("y_train[20:] after:", y_train[20:])
+    # print("y_train after:", y_train)
+    # print("y_train[20:] after:", y_train[20:])
     print("y_train.shape after:", y_train.shape)
     # print("y_test after:", y_test)
 
@@ -1015,6 +1015,8 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
     print("num_frames:", num_frames)
     linestyle_iter = get_linestyle_iter()
     marker_iter = get_marker_iter()
+    wrong_pred_per_frame = []
+    wrong_pred_per_class = []
 
     # all classes
     plt.figure()
@@ -1022,7 +1024,8 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
         ### TODO: this only select 10 classes
         # if i >= 10:
         #     break
-        print("c:", c)
+        print("*"*20)
+        print("+c:", c)
         # per class
         # plt.figure()
         count = 0
@@ -1037,7 +1040,7 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                 # print("viz_frame != frame:", viz_frame != frame)
                 continue
             for ts in c_x_train:
-                print("before ts:", ts)
+                # print("before ts:", ts)
                 print("before ts.shape:", ts.shape)
                 # ts = ts.reshape(1, -1, 1)
                 # ts = ts.reshape(1, 10, -1)
@@ -1047,7 +1050,7 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                 else:
                     ts = ts.reshape(1, 101, -1)
 
-                print("after ts:", ts)
+                # print("after ts:", ts)
                 print("after ts.shape:", ts.shape)
                 [conv_out, predicted] = new_feed_forward([ts])
                 print("conv_out:", conv_out)
@@ -1066,7 +1069,8 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                 print("orig_label_map:", orig_label_map)
                 # assert 0
                 # if pred_label == orig_label:
-                if pred_label_map == orig_label_map:
+                # if pred_label_map == orig_label_map:
+                if True:
                     print("conv_out.shape:", conv_out.shape)
                     cas = np.zeros(dtype=np.float, shape=(conv_out.shape[1]))
                     # cas = np.zeros(dtype=np.float, shape=(conv_out.shape[2]))
@@ -1098,7 +1102,7 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                     print("ts.shape[1] - 1:", ts.shape[shape_ind] - 1)  # 9 or 100
                     x = np.linspace(0, ts.shape[shape_ind] - 1, max_length, endpoint=True)
                     # linear interpolation to smooth
-                    print("x:", x)
+                    # print("x:", x)
                     print("x.shape:", x.shape)
                     print("ts.shape[shape_ind]:", ts.shape[shape_ind])
 
@@ -1134,7 +1138,7 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                         f = interp1d(range(ts.shape[shape_ind]), ts[0, :, frame])
 
                     y = f(x)
-                    print("y:", y)
+                    # print("y:", y)
                     print("y.shape:", y.shape)
                     print("range(ts.shape[1]):", range(ts.shape[1]))
                     print("cas.shape:", cas.shape)
@@ -1145,9 +1149,14 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
 
                     cas = f(x).astype(int)
                     if viz_frame:
+                        if pred_label_map == orig_label_map:
+                            label = f'class {int(c)}'
+                        else:
+                            wrong_pred_per_frame.append({'pred': pred_label_map, 'orig': orig_label_map})
+                            label = f'class predicted: {pred_label_map} original: {orig_label_map}'
                         plt.scatter(x=x, y=y, c=cas, cmap='jet', marker=next(marker_iter),  # marker='.'
                                     s=8, vmin=0, vmax=100, linewidths=0.0, 
-                                    label=f'class {int(c)}', linestyle=next(linestyle_iter))
+                                    label=label, linestyle=next(linestyle_iter))
                     else:
                         plt.scatter(x=x, y=y, c=cas, cmap='jet', marker=next(marker_iter),
                                     s=8, vmin=0, vmax=100, linewidths=0.0, 
@@ -1158,16 +1167,23 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                     # else:
                     #     plt.yticks([-2, -1.0, 0.0, 1.0, 2.0])
                     count += 1
+                else:
+                    print("!!!!! pred_label_map != orig_label_map. pred_label_map =", pred_label_map, "orig_label_map =", orig_label_map)
 
         print("count:", count)
         count_all += count
 
+        print("-c:", c)
         if not viz_frame:
             plt.legend()
             # save pic per class
             cbar = plt.colorbar()
             # cbar.ax.set_yticklabels([100,75,50,25,0])
-            plt.title(f'class {int(c)}')
+            if pred_label_map == orig_label_map:
+                plt.title(f'class {int(c)}')
+            else:
+                wrong_pred_per_class.append({'pred': pred_label_map, 'orig': orig_label_map})
+                plt.title(f'class predicted: {pred_label_map} original: {orig_label_map}')
             plt.ylabel('value', labelpad=6)
             plt.xlabel('time', labelpad=6)
             pic_path = root_dir + '/temp/' + classifier + '-cam-' + save_name + '-class-' + str(int(c)) + '.png'
@@ -1191,3 +1207,7 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
         plt.clf()
 
     print("count_all:", count_all)
+    print("wrong_pred_per_class:", wrong_pred_per_class)
+    print("len(wrong_pred_per_class):", len(wrong_pred_per_class))
+    print("wrong_pred_per_frame:", wrong_pred_per_frame)
+    print("len(wrong_pred_per_frame):", len(wrong_pred_per_frame))
