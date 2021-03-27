@@ -14,9 +14,10 @@ matplotlib.use('agg')
 
 class Classifier_MLP:
 
-    def __init__(self, output_directory, input_shape, nb_classes, verbose=False, build=True):
+    def __init__(self, output_directory, input_shape, nb_classes, verbose=False, build=True, min_lr=0.0001):
         self.output_directory = output_directory
         if build == True:
+            self.min_lr = min_lr
             self.model = self.build_model(input_shape, nb_classes)
             if(verbose == True):
                 self.model.summary()
@@ -26,27 +27,34 @@ class Classifier_MLP:
 
     def build_model(self, input_shape, nb_classes):
         input_layer = keras.layers.Input(input_shape)
+        # activation = 'relu'
+        activation = 'tanh'
+        dense_size = 500
+        # dense_size = 1000
 
         # flatten/reshape because when multivariate all should be on the same axis
         input_layer_flattened = keras.layers.Flatten()(input_layer)
 
         layer_1 = keras.layers.Dropout(0.1)(input_layer_flattened)
-        layer_1 = keras.layers.Dense(500, activation='relu')(layer_1)
+        layer_1 = keras.layers.Dense(dense_size, activation=activation)(layer_1)
 
         layer_2 = keras.layers.Dropout(0.2)(layer_1)
-        layer_2 = keras.layers.Dense(500, activation='relu')(layer_2)
+        layer_2 = keras.layers.Dense(dense_size, activation=activation)(layer_2)
 
         layer_3 = keras.layers.Dropout(0.2)(layer_2)
-        layer_3 = keras.layers.Dense(500, activation='relu')(layer_3)
+        layer_3 = keras.layers.Dense(dense_size, activation=activation)(layer_3)
 
         output_layer = keras.layers.Dropout(0.3)(layer_3)
         output_layer = keras.layers.Dense(
             nb_classes, activation='softmax')(output_layer)
 
         model = keras.models.Model(inputs=input_layer, outputs=output_layer)
-        model, self.callbacks = model_compile_and_callback(
-            model, self.output_directory, optimizer=keras.optimizers.Adadelta())
+        # model, self.callbacks = model_compile_and_callback(
+        #     model, self.output_directory, optimizer=keras.optimizers.Adadelta())
         # model, self.callbacks = model_compile_and_callback(model, self.output_directory, optimizer='adam')
+        model, self.callbacks = model_compile_and_callback(
+            model, self.output_directory, min_lr=self.min_lr)
+
 
         return model
 
