@@ -28,6 +28,8 @@ import matplotlib
 from matplotlib.lines import Line2D
 from pathlib import Path
 import itertools
+import csv
+import pickle
 # import shap
 # tf.compat.v1.disable_eager_execution()
 
@@ -926,7 +928,8 @@ def get_marker_iter():
 
 
 def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext='', 
-            remove_docstr=False, swap_repr=False, viz_frame=None):
+            remove_docstr=False, swap_repr=False, viz_frame=None, out_viz_file=None, 
+            viz_model='finetune', viz_class=0, viz_example=0):
     # # classifier = 'resnet'
     # classifier = 'cnn'
     # # archive_name = 'UCRArchive_2018'
@@ -942,7 +945,7 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
     datasets_dict = read_dataset(
         root_dir, archive_name, dataset_name, file_ext, remove_docstr)
 
-    if True:  # 'finetune'
+    if viz_model == 'finetune':
         x_train = datasets_dict[dataset_name][4]
         y_train = datasets_dict[dataset_name][5]
         x_test = datasets_dict[dataset_name][6]
@@ -979,7 +982,7 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
 
     # x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], 1)
 
-    pre_model_name = 'finetune_'
+    pre_model_name = f'{viz_model}_'
     # pre_model_name = ''
     model = keras.models.load_model(
         root_dir + '/' + 'results/' + classifier + '/' + archive_name + itr + '/' + dataset_name + '/' + pre_model_name + 'best_model.hdf5')
@@ -1018,12 +1021,14 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
     wrong_pred_per_frame = []
     wrong_pred_per_class = []
 
+    viz_data = []
+
     # all classes
     plt.figure()
     for i, c in enumerate(classes):
         ### TODO: this only select 10 classes
-        # if i >= 10:
-        #     break
+        if viz_class > 0 and i >= viz_class:
+            break
         print("*"*20)
         print("+c:", c)
         # per class
@@ -1039,7 +1044,10 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                 # print("frame:", frame)
                 # print("viz_frame != frame:", viz_frame != frame)
                 continue
-            for ts in c_x_train:
+            for i_x, ts in enumerate(c_x_train):
+                if viz_example > 0 and i_x >= viz_example:
+                    break
+                print("i_x:", i_x)
                 # print("before ts:", ts)
                 print("before ts.shape:", ts.shape)
                 # ts = ts.reshape(1, -1, 1)
@@ -1161,6 +1169,8 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                         plt.scatter(x=x, y=y, c=cas, cmap='jet', marker=next(marker_iter),
                                     s=8, vmin=0, vmax=100, linewidths=0.0, 
                                     label=f'frame {FRAME_DEFINITION[frame]}', linestyle=next(linestyle_iter))
+                    if out_viz_file:
+                        viz_data.append({'x': x, 'y': y, 'cas': cas, 'classes': int(c), 'frame': frame, 'i_x': i_x, 'ts': ts, 'pred_label_map': pred_label_map, 'orig_label_map': orig_label_map})
                     # if dataset_name == 'Gun_Point':
                     # if c == 1:
                     #     plt.yticks([-1.0, 0.0, 1.0, 2.0])
@@ -1206,8 +1216,27 @@ def viz_cam(root_dir, classifier_name, archive_name, dataset_name, itr, file_ext
                     bbox_inches='tight', dpi=1080)
         plt.clf()
 
+    if out_viz_file:
+        export_viz(out_viz_file, viz_data)
     print("count_all:", count_all)
     print("wrong_pred_per_class:", wrong_pred_per_class)
     print("len(wrong_pred_per_class):", len(wrong_pred_per_class))
     print("wrong_pred_per_frame:", wrong_pred_per_frame)
     print("len(wrong_pred_per_frame):", len(wrong_pred_per_frame))
+
+def export_viz(out_viz_file, viz_data):
+    if '.csv' in out_viz_file:
+        with open(out_viz_file, 'w') as fout:
+            fieldnames = viz_data[0].keys()
+            csvwriter = csv.DictWriter(fout, delimiter=",", quotechar='"', fieldnames=fieldnames)
+            csvwriter.writeheader()
+            for data in viz_data:
+                for k, v in data.items():
+                    if isinstance(v, (np.ndarray, np.generic) ):
+                        data[k] = v.tolist()
+                csvwriter.writerow(data)
+    elif '.npy' in out_viz_file:
+        data_np = np.array(viz_data)
+        np.save(out_viz_file, data_np)
+    elif '.pk' in out_viz_file:
+        pickle.dump(viz_data, open(out_viz_file, 'wb'))

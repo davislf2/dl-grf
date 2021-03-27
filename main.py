@@ -283,6 +283,17 @@ if __name__ == '__main__':
                         default=False)
     parser.add_argument('--viz_frame',
                         help='which frame to visualize')
+    parser.add_argument('--out_viz_file',
+                        help='CAM visualization data output file path. Supports: .csv .npy .pkl')
+    parser.add_argument('--viz_model',
+                        help='CAM visualization on [pretrain/finetune] models',
+                        default='finetune')
+    parser.add_argument('--viz_class',
+                        type=int,
+                        help='number of class for CAM visualization')
+    parser.add_argument('--viz_example',
+                        type=int,
+                        help='number of examples for CAM visualization')
 
     # parser.add_argument('--train_method',
     #                     help='3 approaches: pretrain, pretrain_finetune, finetune',
@@ -343,7 +354,8 @@ if __name__ == '__main__':
     elif args.action == 'viz_cam':
         viz_cam(root_dir, classifier_name, archive_name,
                 dataset_name, itr, args.file_ext, args.remove_docstr, 
-                args.swap_repr, args.viz_frame)
+                args.swap_repr, args.viz_frame, args.out_viz_file,
+                args.viz_model, args.viz_class, args.viz_example)
     elif args.action == 'generate_results_csv':
         res = generate_results_csv('results.csv', root_dir)
         print(res.to_string())
